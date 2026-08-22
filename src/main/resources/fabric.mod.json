@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "configswitch",
+  "version": "${version}",
+  "name": "ConfigSwitch",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/configswitch/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "com.bteamore.configswitch.client.ConfigswitchDataGenerator"
+    ],
+    "client": [
+      "com.bteamore.configswitch.client.ConfigswitchClient"
+    ],
+    "main": [
+      "com.bteamore.configswitch.Configswitch"
+    ]
+  },
+  "mixins": [
+    "configswitch.mixins.json",
+    {
+      "config": "configswitch.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  },
+  "suggests": {
+    "cloth-config": ">=${cloth_config_version}"
+  }
+}
