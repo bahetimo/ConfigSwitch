@@ -12,7 +12,7 @@ public class Configswitch implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        GlobalRepo.init();
+        // GlobalRepo.init();
         LOGGER.info("ConfigSwitch loaded!");
     }
 }
