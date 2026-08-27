@@ -8,9 +8,7 @@ import java.nio.file.Path;
 
 public class GlobalRepo {
     public static void init() {
-        String home = System.getProperty("user.home");
-        Path globalDir = Path.of(home, "AppData", "Roaming", ".minecraft", "configswitch-global");
-        Path commonDir = Path.of(globalDir.toString(),"common");
+        Path commonDir = ConfigTargets.getTarget().globalFile();
         try {
             if (Files.notExists(commonDir)) {
                 Files.createDirectories(commonDir);
