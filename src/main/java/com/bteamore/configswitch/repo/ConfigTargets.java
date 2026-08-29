@@ -9,7 +9,7 @@ public final class ConfigTargets {
         }
     }
 
-    public static IConfigTarget getTarget() {
+    public static IConfigTarget get() {
         return target;
     }
 }

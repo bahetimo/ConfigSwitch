@@ -8,7 +8,7 @@ import java.nio.file.Path;
 
 public class GlobalRepo {
     public static void init() {
-        Path commonDir = ConfigTargets.getTarget().globalFile();
+        Path commonDir = IConfigTarget.commonDir;
         try {
             if (Files.notExists(commonDir)) {
                 Files.createDirectories(commonDir);
