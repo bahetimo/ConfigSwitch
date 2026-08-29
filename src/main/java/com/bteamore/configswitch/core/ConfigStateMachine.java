@@ -1,9 +1,8 @@
 package com.bteamore.configswitch.core;
 
 import com.bteamore.configswitch.Configswitch;
-import com.bteamore.configswitch.core.actions.IOAction;
-import com.bteamore.configswitch.core.actions.SwitchAction;
-import com.bteamore.configswitch.core.actions.SyncAction;
+import com.bteamore.configswitch.core.actions.FetchAction;
+import com.bteamore.configswitch.core.actions.PushAction;
 
 import java.util.EnumMap;
 
@@ -15,35 +14,28 @@ public class ConfigStateMachine {
         }
         return instance;
     }
-    private ConfigState currentState = ConfigState.LINKED;
+    private ConfigState currentState = ConfigState.IDLE;
     private final EnumMap<ConfigState, EnumMap<ConfigEvent, Transition<ConfigState, ConfigEvent>>> transition = new EnumMap<>(ConfigState.class);
 
     private ConfigStateMachine(){
         this.init();
     }
 
-    // Linked overlay->Local：当前配置覆盖存储(或不操作)
-    // Local sync->Linked：备份全局，当前配置覆盖全局 (Push)
-    // Linked switch->Local：存储覆盖当前配置 （Store）（这个貌似也可以不用中间态）
-    // Local switch->Linked：当前配置覆盖存储，全局覆盖当前配置 (Fetch)
+    // 参考 git 模型:push 推送本地到全局,fetch 从全局拉取(后续会加入 diff 以更原子化的 push/fetch)
     private void init(){
-        // 覆盖
-        register(ConfigState.LINKED,ConfigEvent.OVERLAY,ConfigState.LOCAL,(from,to,e) -> {
-            Configswitch.LOGGER.info("StateMachine - Overlay to Local");
+        // push
+        register(ConfigState.IDLE,ConfigEvent.PUSH,ConfigState.PUSHING,new PushAction());
+        register(ConfigState.PUSHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e) -> {
+            Configswitch.LOGGER.info("StateMachine - Push complete");
             return null;
         });
 
-        // 同步
-        register(ConfigState.LOCAL,ConfigEvent.SYNC,ConfigState.PUSH,new SyncAction());
-        register(ConfigState.PUSH,ConfigEvent.IO,ConfigState.LINKED,new IOAction());
-
-        // 切换
-        register(ConfigState.LINKED,ConfigEvent.SWITCH,ConfigState.STORE,new SwitchAction());
-        register(ConfigState.STORE,ConfigEvent.IO,ConfigState.LOCAL,new IOAction());
-
-        // 切换
-        register(ConfigState.LOCAL,ConfigEvent.SWITCH,ConfigState.FETCH,new SwitchAction());
-        register(ConfigState.FETCH,ConfigEvent.IO,ConfigState.LINKED,new IOAction());
+        // fetch
+        register(ConfigState.IDLE,ConfigEvent.FETCH,ConfigState.FETCHING,new FetchAction());
+        register(ConfigState.FETCHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e) -> {
+            Configswitch.LOGGER.info("StateMachine - Fetch complete");
+            return null;
+        });
     }
 
     protected void register(ConfigState fromState, ConfigEvent event, ConfigState toState, Action<ConfigState, ConfigEvent> action) {
