@@ -19,11 +19,6 @@ public class OptionsTarget implements IConfigTarget {
     }
 
     @Override
-    public Path storeFile() {
-        return gameDir.resolve("configswitch/store/options.txt");
-    }
-
-    @Override
     public Path backupFile() {
         return gameDir.resolve("configswitch/backup/options.txt");
     }
