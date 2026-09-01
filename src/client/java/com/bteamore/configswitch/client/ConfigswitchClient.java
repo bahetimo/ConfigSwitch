@@ -1,8 +1,10 @@
 package com.bteamore.configswitch.client;
 
+import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.client.gui.ConfigScreen;
 import com.bteamore.configswitch.client.repo.OptionsTarget;
 import com.bteamore.configswitch.core.ConfigFileServices;
+import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.manager.ConfigHandler;
 import com.bteamore.configswitch.repo.ConfigTargets;
 import net.fabricmc.api.ClientModInitializer;
@@ -32,5 +34,9 @@ public class ConfigswitchClient implements ClientModInitializer {
                 client.setScreen(new ConfigScreen());
             }
         });
+
+        for (ModGroup group : new ConfigDiscovery().discover()) {
+            Configswitch.LOGGER.info("[discovery] {} -> {}",group.getModId(), group.getFiles());
+        }
     }
 }
