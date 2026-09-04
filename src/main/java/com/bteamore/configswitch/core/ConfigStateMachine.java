@@ -25,14 +25,14 @@ public class ConfigStateMachine {
     private void init(){
         // push
         register(ConfigState.IDLE,ConfigEvent.PUSH,ConfigState.PUSHING,new PushAction());
-        register(ConfigState.PUSHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e) -> {
+        register(ConfigState.PUSHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e,c) -> {
             Configswitch.LOGGER.info("StateMachine - Push complete");
             return null;
         });
 
         // fetch
         register(ConfigState.IDLE,ConfigEvent.FETCH,ConfigState.FETCHING,new FetchAction());
-        register(ConfigState.FETCHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e) -> {
+        register(ConfigState.FETCHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e,c) -> {
             Configswitch.LOGGER.info("StateMachine - Fetch complete");
             return null;
         });
@@ -43,7 +43,7 @@ public class ConfigStateMachine {
         transition.computeIfAbsent(fromState, key -> new EnumMap<>(event.getDeclaringClass())).put(event, trans);
     }
 
-    public void handleEvent(ConfigEvent event) {
+    public void handleEvent(ConfigEvent event, Object context) {
         var inner = transition.get(this.currentState);
         if (inner == null){
             Configswitch.LOGGER.warn("StateMachine - No transition defined for state: {}", this.currentState);
@@ -60,11 +60,11 @@ public class ConfigStateMachine {
             return;
         }
 
-        ConfigEvent afterEvent = action.execute(this.currentState, trans.toState, event);
+        ConfigEvent afterEvent = action.execute(this.currentState, trans.toState, event, context);
         this.currentState = trans.toState;
 
         if (afterEvent != null) {
-            handleEvent(afterEvent);
+            handleEvent(afterEvent, context);
         }
     }
 

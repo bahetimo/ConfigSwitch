@@ -2,6 +2,7 @@ package com.bteamore.configswitch.manager;
 
 import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.core.IConfigFileService;
+import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.repo.ConfigTargets;
 import com.bteamore.configswitch.repo.IConfigTarget;
 
@@ -29,6 +30,22 @@ public class ConfigHandler implements IConfigFileService {
             backup(target.globalFile(), target.backupFile());
         }
         copy(target.activeFile(), target.globalFile());
+    }
+
+    @Override
+    public void pushActiveToGlobal(List<ConfigPaths> paths) {
+        for (ConfigPaths target : paths) {
+            if (target == null) {
+                Configswitch.LOGGER.error("Push failed - no config target registered");
+                continue;
+            }
+            // 一致性规则:推送前先备份即将被覆盖的全局配置
+            if (Files.exists(target.global())) {
+                copy(target.global(), target.backup());
+            }
+            copy(target.active(), target.global());
+            // 不加try-catch是因为copy和backup方法内部已经处理了异常，后面再处理
+        }
     }
 
     @Override

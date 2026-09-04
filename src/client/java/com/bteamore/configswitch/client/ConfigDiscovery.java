@@ -4,7 +4,6 @@ import com.bteamore.configswitch.discovery.ConfigClassifier;
 import com.bteamore.configswitch.discovery.ConfigScanner;
 import com.bteamore.configswitch.discovery.ModGroup;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -12,12 +11,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ConfigDiscovery {
-    private static final Path gameDir = MinecraftClient.getInstance().runDirectory.toPath();
-    private static final Path configDir = gameDir.resolve("config");
-    private static final Path optionsFile = gameDir.resolve("options.txt");
+    private final Path gameDir;
+    private final Path configDir;
+    private final Path optionsFile;
 
     private final ConfigScanner scanner = new ConfigScanner();
     private final ConfigClassifier classifier = new ConfigClassifier();
+
+    public ConfigDiscovery(Path dir) {
+        gameDir = dir;
+        configDir = gameDir.resolve("config");
+        optionsFile = gameDir.resolve("options.txt");
+    }
 
     private Set<String> cachedModIds;
 

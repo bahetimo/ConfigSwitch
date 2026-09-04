@@ -16,7 +16,7 @@ public class StateManager {
         return instance;
     }
 
-    public void transition(String event) {
+    public void transition(String event, Object context) {
         if (event == null){
             return;
         }
@@ -26,7 +26,7 @@ public class StateManager {
             return;
         }
 
-        ConfigStateMachine.getInstance().handleEvent(configEvent);
+        ConfigStateMachine.getInstance().handleEvent(configEvent, context);
     }
 
     private ConfigEvent getConfigEvent(String event) {

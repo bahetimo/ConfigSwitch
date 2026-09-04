@@ -9,7 +9,7 @@ import com.bteamore.configswitch.core.IConfigFileService;
 
 public class FetchAction implements Action<ConfigState, ConfigEvent> {
     @Override
-    public ConfigEvent execute(ConfigState from, ConfigState to, ConfigEvent event) {
+    public ConfigEvent execute(ConfigState from, ConfigState to, ConfigEvent event, Object context) {
         Configswitch.LOGGER.info("StateMachine - Fetch");
         IConfigFileService service = ConfigFileServices.get();
         if (service == null) {
