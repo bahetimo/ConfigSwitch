@@ -52,7 +52,7 @@ public class ConfigScreen extends Screen {
     }
 
     private void onPress(String name) {
-        List<ModGroup> groups = discovery.discover();
+        List<ModGroup> groups = discovery.discover(name);
         groups.forEach(group -> Configswitch.LOGGER.debug("Found mod ID: {}", group.getModId()));
 
         String timeStamp = Time.timeString();
