@@ -1,12 +1,8 @@
 package com.bteamore.configswitch.client;
 
-import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.client.gui.ConfigScreen;
-import com.bteamore.configswitch.client.repo.OptionsTarget;
 import com.bteamore.configswitch.core.ConfigFileServices;
-import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.manager.ConfigHandler;
-import com.bteamore.configswitch.repo.ConfigTargets;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -19,7 +15,6 @@ public class ConfigswitchClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ConfigTargets.register(new OptionsTarget());
         ConfigFileServices.register(new ConfigHandler());
 
         openConfigScreen = KeyBindingHelper.registerKeyBinding(new KeyBinding(
