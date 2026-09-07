@@ -59,7 +59,7 @@ public class ConfigScreen extends Screen {
 
         List<ConfigPaths> configPaths = groups.stream()
                 .flatMap(group -> group.getFiles().stream()
-                        .map(path -> resolver.resolve(group.getModId(), path.getFileName().toString(), timeStamp)))
+                        .map(path -> resolver.resolve(group.getModId(), path.getFileName().toString(), timeStamp, name)))
                 .filter(Objects::nonNull)
                 .toList();
 

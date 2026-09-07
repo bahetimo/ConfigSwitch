@@ -15,7 +15,7 @@ public class ConfigPathResolver {
         this.gameDir = gameDir;
     }
 
-    public ConfigPaths resolve(String modId, String fileName, String timestamp) {
+    public ConfigPaths resolve(String modId, String fileName, String timestamp, String operation) {
         if (modId == null) {
             return null;
         }
@@ -33,7 +33,14 @@ public class ConfigPathResolver {
         }
         Path active = gameDir.resolve(cfgDir).resolve(fileName);
         Path global = commonDir.resolve(modDir).resolve(fileName);
-        Path backup = backupDir.resolve(timestamp).resolve(modDir).resolve(fileName);
+        Path backup;
+        switch (operation) {
+            case "fetch" -> backup = gameDir.resolve("config").resolve("switch").resolve("backup").resolve(timestamp).resolve(fileName);
+            case "push" -> backup = backupDir.resolve(timestamp).resolve(modDir).resolve(fileName);
+            default -> {
+                return null;
+            }
+        }
 
         return new ConfigPaths(fileName, active, global, backup);
     }
