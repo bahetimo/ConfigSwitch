@@ -27,17 +27,23 @@ public class ConfigPathResolver {
             }
         }
         Path active = gameDir.resolve(cfgDir).resolve(fileName);
-        Path global = commonDir.resolve(modDir).resolve(fileName);
         Path global = RepoPaths.COMMON_DIR.resolve(modDir).resolve(fileName);
+        Path backupRoot;
         Path backup;
         switch (operation) {
-            case "fetch" -> backup = gameDir.resolve("config").resolve("switch").resolve("backup").resolve(timestamp).resolve(fileName);
-            case "push" -> backup = backupDir.resolve(timestamp).resolve(modDir).resolve(fileName);
+            case "fetch" -> {
+                backupRoot = gameDir.resolve("config").resolve("switch").resolve("backup");
+                backup = backupRoot.resolve(timestamp).resolve(fileName);
+            }
+            case "push" -> {
+                backupRoot = RepoPaths.BACKUP_DIR;
+                backup = backupRoot.resolve(timestamp).resolve(modDir).resolve(fileName);
+            }
             default -> {
                 return null;
             }
         }
 
-        return new ConfigPaths(fileName, active, global, backup);
+        return new ConfigPaths(fileName, active, global, backup, backupRoot);
     }
 }

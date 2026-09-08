@@ -18,11 +18,13 @@ public class ConfigHandlerTest {
 
     private ConfigPaths newPaths(String fileName) {
         // backup 路径带时间戳目录，与生产结构（backupRoot/<ts>/<fileName>）对齐
+        Path backupRoot = tempDir.resolve("backup");
         return new ConfigPaths(
                 fileName,
                 tempDir.resolve("active").resolve(fileName),
                 tempDir.resolve("global").resolve(fileName),
-                tempDir.resolve("backup").resolve("2026-09-07--00-00-00").resolve(fileName)
+                backupRoot.resolve("2026-09-07--00-00-00").resolve(fileName),
+                backupRoot
         );
     }
 
@@ -127,7 +129,8 @@ public class ConfigHandlerTest {
                 fileName,
                 tempDir.resolve("active").resolve(fileName),
                 tempDir.resolve("global").resolve(fileName),
-                backupRoot.resolve(ts).resolve(fileName)
+                backupRoot.resolve(ts).resolve(fileName),
+                backupRoot
         );
     }
 

@@ -3,20 +3,17 @@ package com.bteamore.configswitch.manager;
 import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.core.IConfigFileService;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.util.Time;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
-import java.util.regex.Pattern;
 
 public class ConfigHandler implements IConfigFileService {
     public static final int MAX_BACKUP_COUNT = 10;
-    private static final Pattern BACKUP_FILE_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}--\\d{2}-\\d{2}-\\d{2}");
 
     @Override
     public void pushActiveToGlobal(List<ConfigPaths> paths) {
@@ -32,7 +29,7 @@ public class ConfigHandler implements IConfigFileService {
             }
 
             if (backupRoot == null) {
-                backupRoot = backupRootOf(target.backup());
+                backupRoot = target.backupRoot();
             }
             copy(target.active(), target.global());
             // 不加try-catch是因为copy和backup方法内部已经处理了异常，后面再处理
@@ -56,7 +53,7 @@ public class ConfigHandler implements IConfigFileService {
             // 一致性规则:拉取前先备份即将被覆盖的本地配置
             copy(target.active(), target.backup());
             if (backupRoot == null) {
-                backupRoot = backupRootOf(target.backup());
+                backupRoot = target.backupRoot();
             }
 
             copy(target.global(), target.active());
@@ -69,7 +66,7 @@ public class ConfigHandler implements IConfigFileService {
     private void prune(Path backupDir) {
         try (var stream = Files.list(backupDir)) {
             List<Path> backups = stream
-                    .filter(file -> BACKUP_FILE_PATTERN.matcher(file.getFileName().toString()).matches())
+                    .filter(file -> Time.BACKUP_FILE_PATTERN.matcher(file.getFileName().toString()).matches())
                     .sorted(Comparator.comparing(path -> path.getFileName().toString(), Comparator.reverseOrder()))
                     .toList();
             for (int i = MAX_BACKUP_COUNT; i < backups.size(); i++) {
@@ -94,26 +91,19 @@ public class ConfigHandler implements IConfigFileService {
         }
     }
 
-    // 暂时先这么处理
-    private Path backupRootOf(Path backup) {
-        Path dir = backup.getParent();
-        // 向上找第一个时间戳命名的目录；getFileName() 为 null 说明已爬到文件系统根
-        while (dir != null && dir.getFileName() != null
-                && !BACKUP_FILE_PATTERN.matcher(dir.getFileName().toString()).matches()) {
-            dir = dir.getParent();
-        }
-        // 没找到时间戳目录时退化为 backup 的直接父目录，避免 NPE
-        return (dir == null || dir.getFileName() == null) ? backup.getParent() : dir.getParent();
-    }
-
     private void copy(Path from, Path to) {
+        Path parent = to.getParent();
+        if (parent == null) {
+            Configswitch.LOGGER.error("Failed to copy {} -> {}: {}", from, to, "Parent directory is null");
+            return;
+        }
         try {
-            if (to.getParent() != null && !Files.exists(to.getParent())) {
-                Files.createDirectories(to.getParent());
+            if (!Files.exists(parent)) {
+                Files.createDirectories(parent);
             }
 
             // 先写临时文件，再原子替换
-            Path temp = Files.createTempFile(Objects.requireNonNull(to.getParent()), to.getFileName().toString(), ".tmp");
+            Path temp = Files.createTempFile(parent, to.getFileName().toString(), ".tmp");
             Files.copy(from, temp, StandardCopyOption.REPLACE_EXISTING);
             Files.move(temp, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {

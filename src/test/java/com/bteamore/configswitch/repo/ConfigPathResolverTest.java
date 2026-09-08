@@ -35,6 +35,8 @@ public class ConfigPathResolverTest {
         assertEquals(COMMON_DIR.resolve("options.txt"), paths.global());
         // fetch backup 固定落在 gameDir/config/switch/backup/<ts>/ 下，不带 mod 子目录
         assertEquals(fetchBackup("ts", "options.txt"), paths.backup());
+        // fetch 的 backupRoot 是 gameDir/config/switch/backup
+        assertEquals(gameDir.resolve("config").resolve("switch").resolve("backup"), paths.backupRoot());
     }
 
     // 普通 mod 组：active 带 config 前缀，global/backup 带 mod 子目录
@@ -49,6 +51,8 @@ public class ConfigPathResolverTest {
         assertEquals(gameDir.resolve("config").resolve("sodium-options.json"), paths.active());
         assertEquals(COMMON_DIR.resolve("sodium").resolve("sodium-options.json"), paths.global());
         assertEquals(fetchBackup("ts", "sodium-options.json"), paths.backup());
+        // fetch 的 backupRoot 是 gameDir/config/switch/backup
+        assertEquals(gameDir.resolve("config").resolve("switch").resolve("backup"), paths.backupRoot());
     }
 
     // uncategorized 组不处理，返回 null
@@ -99,5 +103,7 @@ public class ConfigPathResolverTest {
 
         assertNotNull(paths);
         assertEquals(GLOBAL_BACKUP_DIR.resolve("ts").resolve("sodium").resolve("a.cfg"), paths.backup());
+        // push 的 backupRoot 是全局 BACKUP_DIR
+        assertEquals(GLOBAL_BACKUP_DIR, paths.backupRoot());
     }
 }
