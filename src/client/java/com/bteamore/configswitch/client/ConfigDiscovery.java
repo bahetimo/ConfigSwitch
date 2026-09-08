@@ -4,6 +4,7 @@ import com.bteamore.configswitch.discovery.ConfigClassifier;
 import com.bteamore.configswitch.discovery.ConfigScanner;
 import com.bteamore.configswitch.discovery.GlobalConfigScanner;
 import com.bteamore.configswitch.discovery.ModGroup;
+import com.bteamore.configswitch.repo.RepoPaths;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
@@ -16,11 +17,6 @@ public class ConfigDiscovery {
     private final Path gameDir;
     private final Path configDir;
     private final Path optionsFile;
-
-    // global path 暂时不知道可以放在哪个通用的文件中，故先放这
-    private static final Path root = Path.of(System.getProperty("user.home"),"AppData", "Roaming", ".minecraft", "configswitch");
-    private static final Path globalDir = Path.of(root.toString(), "global");
-    private static final Path commonDir = Path.of(globalDir.toString(), "common");
 
     private final ConfigScanner scanner = new ConfigScanner();
     private final ConfigClassifier classifier = new ConfigClassifier();
@@ -43,7 +39,7 @@ public class ConfigDiscovery {
     }
 
     private List<ModGroup> discoverGlobal() {
-        List<ModGroup> groups = gScanner.scan(commonDir);
+        List<ModGroup> groups = gScanner.scan(RepoPaths.COMMON_DIR);
 
         return groups.stream()
                 .filter(group -> (getModIds().contains(group.getModId())) || (group.getModId().equals(ModGroup.VANILLA_ID)))

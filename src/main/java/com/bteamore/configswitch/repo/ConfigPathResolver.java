@@ -5,11 +5,6 @@ import java.nio.file.Path;
 public class ConfigPathResolver {
     // Game Repo
     private final Path gameDir;
-    // Global Repo
-    private static final Path root = Path.of(System.getProperty("user.home"),"AppData", "Roaming", ".minecraft", "configswitch");
-    private static final Path globalDir = Path.of(root.toString(), "global");
-    private static final Path commonDir = Path.of(globalDir.toString(), "common");
-    private static final Path backupDir = Path.of(root.toString(), "backup");
 
     public ConfigPathResolver(Path gameDir) {
         this.gameDir = gameDir;
@@ -33,6 +28,7 @@ public class ConfigPathResolver {
         }
         Path active = gameDir.resolve(cfgDir).resolve(fileName);
         Path global = commonDir.resolve(modDir).resolve(fileName);
+        Path global = RepoPaths.COMMON_DIR.resolve(modDir).resolve(fileName);
         Path backup;
         switch (operation) {
             case "fetch" -> backup = gameDir.resolve("config").resolve("switch").resolve("backup").resolve(timestamp).resolve(fileName);
