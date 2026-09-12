@@ -9,6 +9,7 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -46,14 +47,19 @@ public class ConfigDiscovery {
                 .toList();
     }
 
-    private List<ModGroup> discoverLocal() {
+    public List<ModGroup> discoverLocal() {
         List<Path> configFiles = scanner.scan(configDir);
 
-        return classifier.classify(optionsFile, configFiles, getModIds());
+        List<ModGroup> classified = classifier.classify(optionsFile, configFiles, getModIds());
+        // 原版置顶 → 其余按 modId 字母序
+        return classified.stream()
+                .sorted(Comparator.comparing((ModGroup g) -> !g.getModId().equals(ModGroup.VANILLA_ID))
+                        .thenComparing(ModGroup::getModId))
+                .collect(Collectors.toList());
     }
 
     public Set<String> getModIds() {
-        if (cachedModIds == null){
+        if (cachedModIds == null) {
             cachedModIds = FabricLoader.getInstance().getAllMods().stream()
                     .map(mod -> mod.getMetadata().getId())
                     .collect(Collectors.toSet());
