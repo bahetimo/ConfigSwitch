@@ -71,6 +71,7 @@ public class ConfigHandlerTest {
         assertFalse(Files.exists(paths.backup()));
     }
 
+    // 输入约定：fetch 的 paths 来自本地配置发现，active 必然存在；global 可缺失
     // 覆盖：global "new"、active "old" → fetch 后 active 变 "new"
     @Test
     void testFetchOverwritesActiveWithGlobal() throws IOException {
@@ -85,26 +86,27 @@ public class ConfigHandlerTest {
         assertEquals("new", Files.readString(paths.active()));
     }
 
-    // 跳过：active 不存在 → fetch 后 active 仍不存在（不被创建）
+    // 本地配置存在、global 缺失（从未推送过）→ 跳过：active 保持原值，不产生备份
     @Test
-    void testFetchSkipsWhenActiveMissing() throws IOException {
+    void testFetchSkipsWhenGlobalMissing() throws IOException {
         ConfigPaths paths = newPaths("options.txt");
-        Files.createDirectories(paths.global().getParent());
-        Files.writeString(paths.global(), "new");
-        // active 文件不创建
+        Files.createDirectories(paths.active().getParent());
+        Files.writeString(paths.active(), "old");
+        // global 文件不创建
 
         new ConfigHandler().fetchGlobalToActive(List.of(paths));
 
-        assertFalse(Files.exists(paths.active()));
+        assertEquals("old", Files.readString(paths.active()));
+        assertFalse(Files.exists(paths.backup()));
     }
 
-    // 多条目：跳过条目不影响后续条目的处理
+    // 多条目：global 缺失的条目被跳过，不影响后续条目的处理
     @Test
-    void testFetchSkipsMissingActiveButProcessesOthers() throws IOException {
+    void testFetchSkipsMissingGlobalButProcessesOthers() throws IOException {
         ConfigPaths skipped = newPaths("skipped.cfg");
-        Files.createDirectories(skipped.global().getParent());
-        Files.writeString(skipped.global(), "g");
-        // skipped 的 active 不创建
+        // skipped 的 global 不创建
+        Files.createDirectories(skipped.active().getParent());
+        Files.writeString(skipped.active(), "local");
 
         ConfigPaths covered = newPaths("covered.cfg");
         Files.createDirectories(covered.global().getParent());
@@ -114,7 +116,9 @@ public class ConfigHandlerTest {
 
         new ConfigHandler().fetchGlobalToActive(List.of(skipped, covered));
 
-        assertFalse(Files.exists(skipped.active()));
+        // global 缺失：active 保持原值
+        assertEquals("local", Files.readString(skipped.active()));
+        // global 存在：active 被覆盖
         assertEquals("new", Files.readString(covered.active()));
     }
 

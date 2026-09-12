@@ -47,7 +47,7 @@ public class ConfigHandler implements IConfigFileService {
                 Configswitch.LOGGER.error("Fetch failed - no config target registered");
                 continue;
             }
-            if (!Files.exists(target.active())) {
+            if (!Files.exists(target.global())) {
                 continue;
             }
             // 一致性规则:拉取前先备份即将被覆盖的本地配置
