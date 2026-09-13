@@ -1,7 +1,9 @@
 package com.bteamore.configswitch.manager;
 
 import com.bteamore.configswitch.Configswitch;
+import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.IConfigFileService;
+import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.util.Time;
 
@@ -10,57 +12,87 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ConfigHandler implements IConfigFileService {
     public static final int MAX_BACKUP_COUNT = 10;
+    private static final Map<SyncOutcome, Integer> PRIORITY = Map.of(
+            SyncOutcome.FAILED, 3,
+            SyncOutcome.SUCCESS, 2,
+            SyncOutcome.SKIPPED, 1
+    );
 
     @Override
-    public void pushActiveToGlobal(List<ConfigPaths> paths) {
+    public SyncReport pushActiveToGlobal(List<ConfigPaths> paths) {
         Path backupRoot = null;
+        Map<String, SyncOutcome> results = new LinkedHashMap<>();
+
         for (ConfigPaths target : paths) {
             if (target == null) {
                 Configswitch.LOGGER.error("Push failed - no config target registered");
                 continue;
             }
             // 一致性规则:推送前先备份即将被覆盖的全局配置
+            boolean backupOk = true;
             if (Files.exists(target.global())) {
-                copy(target.global(), target.backup());
+                backupOk = copy(target.global(), target.backup());
             }
 
             if (backupRoot == null) {
                 backupRoot = target.backupRoot();
             }
-            copy(target.active(), target.global());
+            boolean copyOk = copy(target.active(), target.global());
+            if (!backupOk || !copyOk) {
+                priorityMerge(results, target.modId(), SyncOutcome.FAILED);
+            } else {
+                priorityMerge(results, target.modId(), SyncOutcome.SUCCESS);
+            }
             // 不加try-catch是因为copy和backup方法内部已经处理了异常，后面再处理
         }
         if (backupRoot != null) {
             prune(backupRoot);
         }
+        return new SyncReport(results);
     }
 
     @Override
-    public void fetchGlobalToActive(List<ConfigPaths> paths) {
+    public SyncReport fetchGlobalToActive(List<ConfigPaths> paths) {
         Path backupRoot = null;
+        Map<String, SyncOutcome> results = new LinkedHashMap<>();
+
         for (ConfigPaths target : paths) {
             if (target == null) {
                 Configswitch.LOGGER.error("Fetch failed - no config target registered");
                 continue;
             }
             if (!Files.exists(target.global())) {
+                priorityMerge(results, target.modId(), SyncOutcome.SKIPPED);
                 continue;
             }
             // 一致性规则:拉取前先备份即将被覆盖的本地配置
-            copy(target.active(), target.backup());
+            boolean backupOk = copy(target.active(), target.backup());
+
             if (backupRoot == null) {
                 backupRoot = target.backupRoot();
             }
 
-            copy(target.global(), target.active());
+            boolean copyOk = copy(target.global(), target.active());
+            if (!backupOk || !copyOk) {
+                priorityMerge(results, target.modId(), SyncOutcome.FAILED);
+            } else {
+                priorityMerge(results, target.modId(), SyncOutcome.SUCCESS);
+            }
         }
         if (backupRoot != null) {
             prune(backupRoot);
         }
+        return new SyncReport(results);
+    }
+
+    private void priorityMerge(Map<String, SyncOutcome> result, String modId, SyncOutcome outcome) {
+        result.merge(modId, outcome, (o1, o2) -> PRIORITY.get(o1) >= PRIORITY.get(o2) ? o1 : o2);
     }
 
     private void prune(Path backupDir) {
@@ -91,11 +123,11 @@ public class ConfigHandler implements IConfigFileService {
         }
     }
 
-    private void copy(Path from, Path to) {
+    private boolean copy(Path from, Path to) {
         Path parent = to.getParent();
         if (parent == null) {
             Configswitch.LOGGER.error("Failed to copy {} -> {}: {}", from, to, "Parent directory is null");
-            return;
+            return false;
         }
         try {
             if (!Files.exists(parent)) {
@@ -108,6 +140,8 @@ public class ConfigHandler implements IConfigFileService {
             Files.move(temp, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             Configswitch.LOGGER.error("Failed to copy {} -> {}: {}", from, to, e.getMessage());
+            return false;
         }
+        return true;
     }
 }

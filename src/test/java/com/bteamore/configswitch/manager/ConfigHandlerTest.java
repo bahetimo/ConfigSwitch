@@ -1,5 +1,7 @@
 package com.bteamore.configswitch.manager;
 
+import com.bteamore.configswitch.core.SyncOutcome;
+import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,16 +18,50 @@ public class ConfigHandlerTest {
     @TempDir
     Path tempDir;
 
+    // SyncReport 以 modId 为 key 聚合，不跨 mod 的用例统一用这个占位值
+    private static final String MOD_ID = "test-mod";
+
+    // 与生产 backup 路径结构对齐的时间戳目录名
+    private static final String TS = "2026-09-07--00-00-00";
+
     private ConfigPaths newPaths(String fileName) {
+        return newPaths(MOD_ID, fileName);
+    }
+
+    // 指定 modId，用于断言 SyncReport 按 modId 聚合
+    private ConfigPaths newPaths(String modId, String fileName) {
         // backup 路径带时间戳目录，与生产结构（backupRoot/<ts>/<fileName>）对齐
         Path backupRoot = tempDir.resolve("backup");
         return new ConfigPaths(
                 fileName,
                 tempDir.resolve("active").resolve(fileName),
                 tempDir.resolve("global").resolve(fileName),
-                backupRoot.resolve("2026-09-07--00-00-00").resolve(fileName),
-                backupRoot
+                backupRoot.resolve(TS).resolve(fileName),
+                backupRoot,
+                modId
         );
+    }
+
+    // 失败注入：backup 的父目录被同名普通文件占位 → copy 建临时文件时抛 IOException → 返回 false
+    private ConfigPaths brokenBackupPaths(String modId, String fileName) throws IOException {
+        Path blocked = tempDir.resolve("blocked-" + fileName);
+        Files.writeString(blocked, "not a directory");
+        Path backupRoot = tempDir.resolve("backup");
+        Files.createDirectories(backupRoot);
+        return new ConfigPaths(
+                fileName,
+                tempDir.resolve("active").resolve(fileName),
+                tempDir.resolve("global").resolve(fileName),
+                blocked.resolve(fileName),
+                backupRoot,
+                modId
+        );
+    }
+
+    // 写文件并自动创建父目录
+    private void write(Path path, String content) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content);
     }
 
     // global 已存在时：先备份旧值到 backup，再以 active 覆盖 global
@@ -37,11 +73,12 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertTrue(Files.exists(paths.backup()));
         assertEquals("old", Files.readString(paths.backup()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
     }
 
     // global 不存在时：直接创建 global，不产生备份
@@ -51,10 +88,11 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.active().getParent());
         Files.writeString(paths.active(), "new");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertFalse(Files.exists(paths.backup()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
     }
 
     // 列表中的 null 元素跳过，不影响其余条目
@@ -65,10 +103,13 @@ public class ConfigHandlerTest {
         Files.writeString(paths.active(), "new");
 
         // List.of 不允许 null 元素，用 Arrays.asList 构造含 null 的列表
-        new ConfigHandler().pushActiveToGlobal(Arrays.asList(null, paths));
+        SyncReport report = new ConfigHandler().pushActiveToGlobal(Arrays.asList(null, paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertFalse(Files.exists(paths.backup()));
+        // null 条目没有 modId，不进报告
+        assertEquals(1, report.results().size());
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
     }
 
     // 输入约定：fetch 的 paths 来自本地配置发现，active 必然存在；global 可缺失
@@ -81,9 +122,10 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.active().getParent());
         Files.writeString(paths.active(), "old");
 
-        new ConfigHandler().fetchGlobalToActive(List.of(paths));
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(paths));
 
         assertEquals("new", Files.readString(paths.active()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
     }
 
     // 本地配置存在、global 缺失（从未推送过）→ 跳过：active 保持原值，不产生备份
@@ -94,10 +136,12 @@ public class ConfigHandlerTest {
         Files.writeString(paths.active(), "old");
         // global 文件不创建
 
-        new ConfigHandler().fetchGlobalToActive(List.of(paths));
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(paths));
 
         assertEquals("old", Files.readString(paths.active()));
         assertFalse(Files.exists(paths.backup()));
+        // 该 mod 的唯一文件被跳过 → 单条 SKIPPED
+        assertEquals(SyncOutcome.SKIPPED, report.results().get(MOD_ID));
     }
 
     // 多条目：global 缺失的条目被跳过，不影响后续条目的处理
@@ -114,12 +158,141 @@ public class ConfigHandlerTest {
         Files.createDirectories(covered.active().getParent());
         Files.writeString(covered.active(), "old");
 
-        new ConfigHandler().fetchGlobalToActive(List.of(skipped, covered));
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(skipped, covered));
 
         // global 缺失：active 保持原值
         assertEquals("local", Files.readString(skipped.active()));
         // global 存在：active 被覆盖
         assertEquals("new", Files.readString(covered.active()));
+        // 两个文件同属一个 mod：SKIPPED 不掩盖 SUCCESS，聚合为单条 SUCCESS
+        assertEquals(1, report.results().size());
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
+    }
+
+    // ---------- SyncReport 按 modId 聚合 ----------
+
+    // 同一 mod 两个文件：A 成功 + B 跳过 → SUCCESS（不因 SKIPPED 被拉低）
+    // 场景真实可达：全局仓库只存过 A（B 从未推送）；若优先级倒置，这里会退化为 SKIPPED
+    @Test
+    void testFetchAggregatesSuccessAndSkippedAsSuccess() throws IOException {
+        ConfigPaths ok = newPaths("a.cfg");
+        write(ok.active(), "old-a");
+        write(ok.global(), "new-a");
+
+        ConfigPaths neverPushed = newPaths("b.cfg");
+        write(neverPushed.active(), "local-b"); // global 缺失 → SKIPPED
+
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(ok, neverPushed));
+
+        assertEquals(1, report.results().size()); // 同 mod 只保留一条
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
+        assertFalse(report.hasFailed());
+    }
+
+    // 同一 mod 两个文件：A 成功 + B 失败 → FAILED（不被 SUCCESS 掩盖）
+    @Test
+    void testFetchAggregatesSuccessAndFailedAsFailed() throws IOException {
+        ConfigPaths ok = newPaths("a.cfg");
+        write(ok.active(), "old-a");
+        write(ok.global(), "new-a");
+
+        ConfigPaths broken = brokenBackupPaths(MOD_ID, "b.cfg");
+        write(broken.active(), "old-b");
+        write(broken.global(), "new-b");
+
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(ok, broken));
+
+        assertEquals(1, report.results().size());
+        assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
+        assertTrue(report.hasFailed());
+        assertEquals(List.of(MOD_ID), report.failedModIds());
+    }
+
+    // 同一 mod 两个文件：A 跳过 + B 失败 → FAILED
+    @Test
+    void testFetchAggregatesSkippedAndFailedAsFailed() throws IOException {
+        ConfigPaths neverPushed = newPaths("a.cfg");
+        write(neverPushed.active(), "local-a"); // global 缺失 → SKIPPED
+
+        ConfigPaths broken = brokenBackupPaths(MOD_ID, "b.cfg");
+        write(broken.active(), "old-b");
+        write(broken.global(), "new-b");
+
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(neverPushed, broken));
+
+        assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
+        assertEquals(1, report.count(SyncOutcome.FAILED));
+    }
+
+    // 聚合取优先级而非"最后写入覆盖"：FAILED 在前、SKIPPED 在后仍为 FAILED
+    @Test
+    void testFetchAggregationIsPriorityBasedNotLastWriteWins() throws IOException {
+        ConfigPaths broken = brokenBackupPaths(MOD_ID, "a.cfg");
+        write(broken.active(), "old-a");
+        write(broken.global(), "new-a");
+
+        ConfigPaths neverPushed = newPaths("b.cfg");
+        write(neverPushed.active(), "local-b"); // global 缺失 → SKIPPED（后处理）
+
+        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(broken, neverPushed));
+
+        assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
+    }
+
+    // push 不会产生 SKIPPED：A 成功 + B 失败 → FAILED
+    @Test
+    void testPushAggregatesSuccessAndFailedAsFailed() throws IOException {
+        ConfigPaths ok = newPaths("a.cfg");
+        write(ok.active(), "local-new-a"); // global 缺失 → 只写不备份 → SUCCESS
+
+        ConfigPaths broken = brokenBackupPaths(MOD_ID, "b.cfg");
+        write(broken.active(), "local-new-b");
+        write(broken.global(), "repo-old-b"); // global 已存在 → 触发备份，而备份失败 → FAILED
+
+        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(ok, broken));
+
+        assertEquals(1, report.results().size());
+        assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
+        assertEquals(List.of(MOD_ID), report.failedModIds());
+    }
+
+    // push：同一 mod 多文件全部成功 → 聚合为单条 SUCCESS
+    @Test
+    void testPushAggregatesAllSuccessAsSuccess() throws IOException {
+        ConfigPaths a = newPaths("a.cfg");
+        write(a.active(), "a");
+
+        ConfigPaths b = newPaths("b.cfg");
+        write(b.active(), "b");
+        write(b.global(), "old-b");
+
+        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(a, b));
+
+        assertEquals(1, report.results().size());
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
+        assertEquals(1, report.count(SyncOutcome.SUCCESS));
+        assertEquals(0, report.count(SyncOutcome.FAILED));
+        assertTrue(report.failedModIds().isEmpty());
+    }
+
+    // 不同 mod 各自成条，互不干扰
+    @Test
+    void testReportKeepsOneEntryPerMod() throws IOException {
+        ConfigPaths ok = newPaths("mod-one", "a.cfg");
+        write(ok.active(), "a");
+
+        ConfigPaths broken = brokenBackupPaths("mod-two", "b.cfg");
+        write(broken.active(), "b");
+        write(broken.global(), "old-b");
+
+        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(ok, broken));
+
+        assertEquals(2, report.results().size());
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("mod-one"));
+        assertEquals(SyncOutcome.FAILED, report.results().get("mod-two"));
+        assertEquals(List.of("mod-two"), report.failedModIds());
+        assertEquals(1, report.count(SyncOutcome.SUCCESS));
+        assertEquals(1, report.count(SyncOutcome.FAILED));
     }
 
     // ---------- prune / deleteRecursively ----------
@@ -134,7 +307,8 @@ public class ConfigHandlerTest {
                 tempDir.resolve("active").resolve(fileName),
                 tempDir.resolve("global").resolve(fileName),
                 backupRoot.resolve(ts).resolve(fileName),
-                backupRoot
+                backupRoot,
+                MOD_ID
         );
     }
 

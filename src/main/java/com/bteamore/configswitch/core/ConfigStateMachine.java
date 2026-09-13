@@ -25,17 +25,20 @@ public class ConfigStateMachine {
     private void init(){
         // push
         register(ConfigState.IDLE,ConfigEvent.PUSH,ConfigState.PUSHING,new PushAction());
-        register(ConfigState.PUSHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e,c) -> {
-            Configswitch.LOGGER.info("StateMachine - Push complete");
-            return null;
-        });
 
         // fetch
         register(ConfigState.IDLE,ConfigEvent.FETCH,ConfigState.FETCHING,new FetchAction());
-        register(ConfigState.FETCHING,ConfigEvent.IO,ConfigState.IDLE,(from,to,e,c) -> {
-            Configswitch.LOGGER.info("StateMachine - Fetch complete");
+
+        // complete
+        register(ConfigState.FETCHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
+            Configswitch.LOGGER.info("StateMachine - Complete");
             return null;
         });
+        register(ConfigState.PUSHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
+            Configswitch.LOGGER.info("StateMachine - Complete");
+            return null;
+        });
+
     }
 
     protected void register(ConfigState fromState, ConfigEvent event, ConfigState toState, Action<ConfigState, ConfigEvent> action) {

@@ -31,6 +31,8 @@ public class ConfigPathResolverTest {
 
         assertNotNull(paths);
         assertEquals("options.txt", paths.fileName());
+        // modId 透传 group id：minecraft 组只有 modDir 被置空，modId 仍是 "minecraft"
+        assertEquals("minecraft", paths.modId());
         assertEquals(gameDir.resolve("options.txt"), paths.active());
         assertEquals(COMMON_DIR.resolve("options.txt"), paths.global());
         // fetch backup 固定落在 gameDir/config/switch/backup/<ts>/ 下，不带 mod 子目录
@@ -48,6 +50,7 @@ public class ConfigPathResolverTest {
 
         assertNotNull(paths);
         assertEquals("sodium-options.json", paths.fileName());
+        assertEquals("sodium", paths.modId());
         assertEquals(gameDir.resolve("config").resolve("sodium-options.json"), paths.active());
         assertEquals(COMMON_DIR.resolve("sodium").resolve("sodium-options.json"), paths.global());
         assertEquals(fetchBackup("ts", "sodium-options.json"), paths.backup());
@@ -105,5 +108,6 @@ public class ConfigPathResolverTest {
         assertEquals(GLOBAL_BACKUP_DIR.resolve("ts").resolve("sodium").resolve("a.cfg"), paths.backup());
         // push 的 backupRoot 是全局 BACKUP_DIR
         assertEquals(GLOBAL_BACKUP_DIR, paths.backupRoot());
+        assertEquals("sodium", paths.modId());
     }
 }

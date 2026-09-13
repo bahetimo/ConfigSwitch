@@ -5,6 +5,6 @@ import com.bteamore.configswitch.repo.ConfigPaths;
 import java.util.List;
 
 public interface IConfigFileService {
-    void pushActiveToGlobal(List<ConfigPaths> paths);
-    void fetchGlobalToActive(List<ConfigPaths> paths);  // global -> active
+    SyncReport pushActiveToGlobal(List<ConfigPaths> paths);
+    SyncReport fetchGlobalToActive(List<ConfigPaths> paths);  // global -> active
 }

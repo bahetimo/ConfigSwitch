@@ -44,6 +44,6 @@ public class ConfigPathResolver {
             }
         }
 
-        return new ConfigPaths(fileName, active, global, backup, backupRoot);
+        return new ConfigPaths(fileName, active, global, backup, backupRoot, modId);
     }
 }

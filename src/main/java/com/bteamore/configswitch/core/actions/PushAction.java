@@ -1,11 +1,7 @@
 package com.bteamore.configswitch.core.actions;
 
 import com.bteamore.configswitch.Configswitch;
-import com.bteamore.configswitch.core.Action;
-import com.bteamore.configswitch.core.ConfigEvent;
-import com.bteamore.configswitch.core.ConfigFileServices;
-import com.bteamore.configswitch.core.ConfigState;
-import com.bteamore.configswitch.core.IConfigFileService;
+import com.bteamore.configswitch.core.*;
 import com.bteamore.configswitch.repo.ConfigPaths;
 
 import java.util.List;
@@ -17,13 +13,14 @@ public class PushAction implements Action<ConfigState, ConfigEvent> {
         IConfigFileService service = ConfigFileServices.get();
         if (service == null) {
             Configswitch.LOGGER.warn("StateMachine - No file service registered, push skipped");
-            return ConfigEvent.IO;
+            return ConfigEvent.DONE;
         }
-        // service.pushActiveToGlobal();
-        if (context instanceof List) {
-            List<ConfigPaths> paths = (List<ConfigPaths>) context;
-            service.pushActiveToGlobal(paths);
+        if (context instanceof SyncRequest) {
+            SyncRequest request = (SyncRequest) context;
+            List<ConfigPaths> paths = request.paths();
+            SyncReport report = service.pushActiveToGlobal(paths);
+            request.callback().accept(report);
         }
-        return ConfigEvent.IO;
+        return ConfigEvent.DONE;
     }
 }
