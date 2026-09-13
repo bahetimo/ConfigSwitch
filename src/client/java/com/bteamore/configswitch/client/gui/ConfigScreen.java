@@ -1,8 +1,10 @@
 package com.bteamore.configswitch.client.gui;
 
-import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.client.ConfigDiscovery;
 import com.bteamore.configswitch.client.gui.widget.ModGroupsWidget;
+import com.bteamore.configswitch.core.SyncRequest;
+import com.bteamore.configswitch.core.SyncOutcome;
+import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.manager.StateManager;
 import com.bteamore.configswitch.repo.ConfigPathResolver;
@@ -55,6 +57,7 @@ public class ConfigScreen extends Screen {
     private final StateManager stateManager = StateManager.getInstance();
     private final ConfigDiscovery discovery = new ConfigDiscovery(gameDir);
     private final ConfigPathResolver resolver = new ConfigPathResolver(gameDir);
+    private SyncReport lastReport;
 
     public ConfigScreen() {
         super(Text.literal("Config Switch"));
@@ -153,9 +156,39 @@ public class ConfigScreen extends Screen {
                 .filter(Objects::nonNull)
                 .toList();
 
-        stateManager.transition(name, configPaths);
-        Configswitch.LOGGER.info("{}按键被按下", name);
+        SyncRequest request = new SyncRequest(configPaths, (report) -> {
+            this.lastReport = report;
+            this.message = buildMessage(name, report);
+        });
+        stateManager.transition(name, request);
         return true;
+    }
+
+    private String buildMessage(String name, SyncReport report) {
+        int success = report.count(SyncOutcome.SUCCESS);
+        int failed = report.count(SyncOutcome.FAILED);
+        int skipped = report.count(SyncOutcome.SKIPPED);
+
+        String prefix = "push".equals(name) ? "Push" : "Fetch";
+
+        if (report.results().isEmpty()) {
+            return "没有可同步的内容";
+        }
+        if (success == 0 && failed == 0) {
+            return "没有可同步的内容，" + skipped + " 个跳过";
+        }
+
+        String join = String.join("、", report.failedModIds());
+
+        return String.format("%s 完成：%d 个模组", prefix, success) +
+                (failed > 0 ? String.format("，%d 个失败（%s）", failed, join) : "") +
+                (skipped > 0 ? String.format("，%d 个跳过", skipped) : "") +
+                ((prefix.equals("Fetch") && involvesModConfig(report)) ? "；部分配置需重启游戏生效" : "");
+    }
+
+    private boolean involvesModConfig(SyncReport report) {
+        return report.results().keySet().stream()
+                .anyMatch(id -> !ModGroup.VANILLA_ID.equals(id));
     }
 
     @Override
@@ -163,7 +196,7 @@ public class ConfigScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
         // 暂时显示状态机的当前状态或 msg
-        String msg = (this.message == null) ? ("当前状态：" + stateManager.getCurrentState().name()): this.message;
+        String msg = (this.message == null) ? ("当前状态：" + stateManager.getCurrentState().name()) : this.message;
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(msg), this.width / 2, TITLE_Y + 12, 0xAAAAAA);
     }
 
