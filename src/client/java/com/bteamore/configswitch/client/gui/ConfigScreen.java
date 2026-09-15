@@ -29,6 +29,7 @@ public class ConfigScreen extends Screen {
     private static final int BUTTON_HEIGHT = 20;
     private static final int BUTTON_GAP = 8;
     private static final int DONE_BUTTON_WIDTH = 60;
+    private static final int BACKUP_BUTTON_WIDTH = 60;
     private static final int BOTTOM_MARGIN = 12;
     private static final int TITLE_Y = 15;
     private static final int MARGIN_X = 20;
@@ -46,6 +47,7 @@ public class ConfigScreen extends Screen {
     private ClickableWidget fetchButton;
     private ClickableWidget pushButton;
     private ClickableWidget doneButton;
+    private ClickableWidget backupButton;
 
     private List<ModGroup> allGroups;
     private final Set<String> selectedModIds = new HashSet<>();
@@ -105,7 +107,7 @@ public class ConfigScreen extends Screen {
                 .build();
 
 
-        // 底部：Fetch / Push 居中并排，完成按钮右对齐
+        // 底部：Fetch / Push 居中并排，备份左下、完成右下
         int buttonY = this.height - BUTTON_HEIGHT - BOTTOM_MARGIN;
         int rowWidth = BUTTON_WIDTH * 2 + BUTTON_GAP;
         int startX = (this.width - rowWidth) / 2;
@@ -122,6 +124,11 @@ public class ConfigScreen extends Screen {
         this.pushButton = ButtonWidget.builder(Text.literal("Push"), btn -> onPress("push"))
                 .dimensions(startX + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
+        // 备份管理
+        this.backupButton = ButtonWidget.builder(Text.literal("备份"),
+                        btn -> MinecraftClient.getInstance().setScreen(new BackupScreen(Text.literal("备份管理"), this.gameDir, this)))
+                .dimensions(MARGIN_X, buttonY, BACKUP_BUTTON_WIDTH, BUTTON_HEIGHT)
+                .build();
         // 完成按钮
         this.doneButton = ButtonWidget.builder(Text.literal("完成"), btn -> this.close())
                 .dimensions(this.width - MARGIN_X - DONE_BUTTON_WIDTH, buttonY, DONE_BUTTON_WIDTH, BUTTON_HEIGHT)
@@ -132,6 +139,7 @@ public class ConfigScreen extends Screen {
         this.addDrawableChild(fetchButton);
         this.addDrawableChild(pushButton);
         this.addDrawableChild(doneButton);
+        this.addDrawableChild(backupButton);
         this.addDrawableChild(allSelected);
         this.addDrawableChild(noneSelected);
         this.addDrawableChild(invertSelected);

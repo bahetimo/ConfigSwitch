@@ -10,4 +10,8 @@ public final class RepoPaths {
 
     private RepoPaths() {
     }
+
+    public static Path LocalBackupDir(Path gameDir) {
+        return gameDir.resolve("config").resolve("switch").resolve("backup");
+    }
 }
