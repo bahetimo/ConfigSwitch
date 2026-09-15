@@ -4,4 +4,5 @@ public enum ConfigState {
     IDLE,
     FETCHING,
     PUSHING,
+    RESTORING,
 }

@@ -15,8 +15,7 @@ public class FetchAction implements Action<ConfigState, ConfigEvent> {
             Configswitch.LOGGER.warn("StateMachine - No file service registered, fetch skipped");
             return ConfigEvent.DONE;
         }
-        if (context instanceof SyncRequest) {
-            SyncRequest request = (SyncRequest) context;
+        if (context instanceof SyncRequest request) {
             List<ConfigPaths> paths = request.paths();
             SyncReport report = service.fetchGlobalToActive(paths);
             request.callback().accept(report);

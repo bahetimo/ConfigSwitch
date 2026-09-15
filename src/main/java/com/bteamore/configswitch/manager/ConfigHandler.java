@@ -4,6 +4,7 @@ import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.IConfigFileService;
 import com.bteamore.configswitch.core.SyncReport;
+import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.util.Time;
 
@@ -88,6 +89,36 @@ public class ConfigHandler implements IConfigFileService {
         if (backupRoot != null) {
             prune(backupRoot);
         }
+        return new SyncReport(results);
+    }
+
+    @Override
+    public SyncReport restore(BackupSnapshot snapshot, Path targetRoot, Path backupRoot) {
+        Path sourceRoot = backupRoot.resolve(snapshot.timeStamp());
+        Map<String, SyncOutcome> results = new LinkedHashMap<>();
+        String newTimeStamp = Time.timeString();
+
+        for (Path relative : snapshot.relativePaths()) {
+            if (relative == null) {
+                Configswitch.LOGGER.error("Restore failed - no config path registered");
+                continue;
+            }
+            Path source = sourceRoot.resolve(relative);
+            Path target = targetRoot.resolve(relative);
+
+            boolean backupOk = true;
+            if (Files.exists(target)) {
+                backupOk = copy(target, backupRoot.resolve(newTimeStamp).resolve(relative));
+            }
+            boolean copyOk = copy(source, target);
+
+            if (!backupOk || !copyOk) {
+                priorityMerge(results, relative.toString(), SyncOutcome.FAILED);
+            } else {
+                priorityMerge(results, relative.toString(), SyncOutcome.SUCCESS);
+            }
+        }
+        prune(backupRoot);
         return new SyncReport(results);
     }
 

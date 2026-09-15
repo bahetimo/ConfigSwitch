@@ -3,6 +3,7 @@ package com.bteamore.configswitch.core;
 import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.core.actions.FetchAction;
 import com.bteamore.configswitch.core.actions.PushAction;
+import com.bteamore.configswitch.core.actions.RestoreAction;
 
 import java.util.EnumMap;
 
@@ -25,16 +26,21 @@ public class ConfigStateMachine {
     private void init(){
         // push
         register(ConfigState.IDLE,ConfigEvent.PUSH,ConfigState.PUSHING,new PushAction());
-
-        // fetch
-        register(ConfigState.IDLE,ConfigEvent.FETCH,ConfigState.FETCHING,new FetchAction());
-
-        // complete
         register(ConfigState.FETCHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
             Configswitch.LOGGER.info("StateMachine - Complete");
             return null;
         });
+
+        // fetch
+        register(ConfigState.IDLE,ConfigEvent.FETCH,ConfigState.FETCHING,new FetchAction());
         register(ConfigState.PUSHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
+            Configswitch.LOGGER.info("StateMachine - Complete");
+            return null;
+        });
+
+        // restore
+        register(ConfigState.IDLE,ConfigEvent.RESTORE,ConfigState.RESTORING,new RestoreAction());
+        register(ConfigState.RESTORING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
             Configswitch.LOGGER.info("StateMachine - Complete");
             return null;
         });

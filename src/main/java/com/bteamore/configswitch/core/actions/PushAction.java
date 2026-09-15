@@ -15,8 +15,7 @@ public class PushAction implements Action<ConfigState, ConfigEvent> {
             Configswitch.LOGGER.warn("StateMachine - No file service registered, push skipped");
             return ConfigEvent.DONE;
         }
-        if (context instanceof SyncRequest) {
-            SyncRequest request = (SyncRequest) context;
+        if (context instanceof SyncRequest request) {
             List<ConfigPaths> paths = request.paths();
             SyncReport report = service.pushActiveToGlobal(paths);
             request.callback().accept(report);

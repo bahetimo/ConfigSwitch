@@ -2,7 +2,9 @@ package com.bteamore.configswitch.manager;
 
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
+import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.util.Time;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -293,6 +295,143 @@ public class ConfigHandlerTest {
         assertEquals(List.of("mod-two"), report.failedModIds());
         assertEquals(1, report.count(SyncOutcome.SUCCESS));
         assertEquals(1, report.count(SyncOutcome.FAILED));
+    }
+
+    // ---------- restore ----------
+
+    // 被恢复的那次快照的时间戳（固定过去时间，避免与恢复时新建的备份目录同秒）
+    private static final String SNAPSHOT_TS = "2026-09-07--10-00-00";
+
+    // 造一个快照：backupRoot/<SNAPSHOT_TS>/<relativeFile> = content
+    private BackupSnapshot makeSnapshot(Path backupRoot, Path relativeFile, String content) throws IOException {
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(relativeFile), content);
+        return new BackupSnapshot(SNAPSHOT_TS, List.of(relativeFile));
+    }
+
+    // 备份根下的时间戳目录（升序）
+    private List<Path> timestampDirs(Path backupRoot) throws IOException {
+        try (var stream = Files.list(backupRoot)) {
+            return stream.filter(Files::isDirectory)
+                    .filter(path -> Time.BACKUP_FILE_PATTERN.matcher(path.getFileName().toString()).matches())
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    // 本次恢复新建的备份目录（排除被恢复的那次快照目录）
+    private Path restoreBackupDir(Path backupRoot) throws IOException {
+        List<Path> dirs = timestampDirs(backupRoot).stream()
+                .filter(dir -> !dir.getFileName().toString().equals(SNAPSHOT_TS))
+                .toList();
+        assertEquals(1, dirs.size(), "恢复应只新建一个备份目录");
+        Path dir = dirs.get(0);
+        // 目录名必须是时间戳格式，否则 prune 永远清理不到它
+        assertTrue(Time.BACKUP_FILE_PATTERN.matcher(dir.getFileName().toString()).matches());
+        return dir;
+    }
+
+    // 恢复前先把 target 的旧值备份到新时间戳目录，再写入备份内容
+    // “新备份里是 old 而不是 new”这一条就能钉死“备份取错源”或“备份晚于恢复”的回归
+    @Test
+    void testRestoreOverwritesTargetAndBacksUpItsOldContent() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, Path.of("options.txt"), "new");
+
+        Path targetRoot = tempDir.resolve("target");
+        write(targetRoot.resolve("options.txt"), "old");
+
+        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+
+        // 恢复结果
+        assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
+        // 旧值被存入本次新建的备份目录，内容必为 old
+        assertEquals("old", Files.readString(restoreBackupDir(backupRoot).resolve("options.txt")));
+    }
+
+    // target 不存在 → 直接按备份内容创建，不产生多余备份
+    @Test
+    void testRestoreCreatesTargetWithoutExtraBackup() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, Path.of("options.txt"), "new");
+        Path targetRoot = tempDir.resolve("target"); // 目标不存在
+
+        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+
+        assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
+        // 没有旧值可备份：备份根下只剩被恢复的那次快照
+        assertEquals(List.of(SNAPSHOT_TS), timestampDirs(backupRoot).stream()
+                .map(dir -> dir.getFileName().toString())
+                .toList());
+    }
+
+    // 多文件：成功 / 失败（备份里缺文件）/ 目标不存在 → 逐条按相对路径统计
+    @Test
+    void testRestoreReportsPartialFailurePerFile() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve("a.cfg"), "new-a");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve("c.cfg"), "new-c");
+        // 快照声明了 b.cfg，但备份里没有这个文件 → 恢复该文件失败
+        BackupSnapshot snapshot = new BackupSnapshot(SNAPSHOT_TS,
+                List.of(Path.of("a.cfg"), Path.of("b.cfg"), Path.of("c.cfg")));
+
+        Path targetRoot = tempDir.resolve("target");
+        write(targetRoot.resolve("a.cfg"), "old-a");
+        write(targetRoot.resolve("b.cfg"), "old-b");
+        // c.cfg 目标不存在
+
+        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+
+        assertEquals(3, report.results().size());
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("a.cfg"));
+        assertEquals(SyncOutcome.FAILED, report.results().get("b.cfg"));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("c.cfg"));
+        assertTrue(report.hasFailed());
+        assertEquals(2, report.count(SyncOutcome.SUCCESS));
+        assertEquals(1, report.count(SyncOutcome.FAILED));
+        // 成功的被恢复/创建，失败的保持原值
+        assertEquals("new-a", Files.readString(targetRoot.resolve("a.cfg")));
+        assertEquals("old-b", Files.readString(targetRoot.resolve("b.cfg")));
+        assertEquals("new-c", Files.readString(targetRoot.resolve("c.cfg")));
+    }
+
+    // 嵌套相对路径（<ts>/<modId>/<file>）→ 源与目标都带 mod 子目录
+    @Test
+    void testRestoreKeepsNestedRelativePath() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("sodium", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+
+        Path targetRoot = tempDir.resolve("target");
+        write(targetRoot.resolve(relative), "local");
+
+        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+
+        assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+        // 旧值备份到同一相对路径下，mod 子目录层级保留
+        assertEquals("local", Files.readString(restoreBackupDir(backupRoot).resolve(relative)));
+    }
+
+    // 快照里的 null 条目被跳过，不影响其余文件
+    @Test
+    void testRestoreSkipsNullEntry() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("options.txt");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(relative), "new");
+        // List.of 不允许 null 元素
+        BackupSnapshot snapshot = new BackupSnapshot(SNAPSHOT_TS, Arrays.asList(null, relative));
+
+        Path targetRoot = tempDir.resolve("target");
+        write(targetRoot.resolve(relative), "old");
+
+        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+
+        assertEquals("new", Files.readString(targetRoot.resolve(relative)));
+        // null 条目没有相对路径，不进报告
+        assertEquals(1, report.results().size());
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
     }
 
     // ---------- prune / deleteRecursively ----------
