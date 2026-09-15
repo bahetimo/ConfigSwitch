@@ -32,7 +32,7 @@ public class ConfigPathResolver {
         Path backup;
         switch (operation) {
             case "fetch" -> {
-                backupRoot = RepoPaths.LocalBackupDir(gameDir);
+                backupRoot = RepoPaths.localBackupDir(gameDir);
                 backup = backupRoot.resolve(timestamp).resolve(fileName);
             }
             case "push" -> {
