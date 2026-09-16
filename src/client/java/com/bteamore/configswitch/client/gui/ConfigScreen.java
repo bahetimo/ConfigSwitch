@@ -30,6 +30,8 @@ public class ConfigScreen extends Screen {
     private static final int BUTTON_GAP = 8;
     private static final int DONE_BUTTON_WIDTH = 60;
     private static final int BACKUP_BUTTON_WIDTH = 60;
+    private static final int SETTINGS_BUTTON_WIDTH = 60;
+    private static final int SETTINGS_BUTTON_Y = 10;
     private static final int BOTTOM_MARGIN = 12;
     private static final int TITLE_Y = 15;
     private static final int MARGIN_X = 20;
@@ -48,6 +50,7 @@ public class ConfigScreen extends Screen {
     private ClickableWidget pushButton;
     private ClickableWidget doneButton;
     private ClickableWidget backupButton;
+    private ClickableWidget settingsButton;
 
     private List<ModGroup> allGroups;
     private final Set<String> selectedModIds = new HashSet<>();
@@ -134,12 +137,19 @@ public class ConfigScreen extends Screen {
                 .dimensions(this.width - MARGIN_X - DONE_BUTTON_WIDTH, buttonY, DONE_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
+        // 右上角：设置入口
+        this.settingsButton = ButtonWidget.builder(Text.literal("设置"),
+                        btn -> MinecraftClient.getInstance().setScreen(new SettingsScreen(Text.literal("设置"), this)))
+                .dimensions(this.width - MARGIN_X - SETTINGS_BUTTON_WIDTH, SETTINGS_BUTTON_Y, SETTINGS_BUTTON_WIDTH, BUTTON_HEIGHT)
+                .build();
+
         this.addDrawableChild(listWidget);
         this.addDrawableChild(searchField);
         this.addDrawableChild(fetchButton);
         this.addDrawableChild(pushButton);
         this.addDrawableChild(doneButton);
         this.addDrawableChild(backupButton);
+        this.addDrawableChild(settingsButton);
         this.addDrawableChild(allSelected);
         this.addDrawableChild(noneSelected);
         this.addDrawableChild(invertSelected);
