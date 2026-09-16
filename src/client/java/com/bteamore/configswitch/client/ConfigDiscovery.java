@@ -40,7 +40,7 @@ public class ConfigDiscovery {
     }
 
     private List<ModGroup> discoverGlobal() {
-        List<ModGroup> groups = gScanner.scan(RepoPaths.COMMON_DIR);
+        List<ModGroup> groups = gScanner.scan(RepoPaths.commonDir());
 
         return groups.stream()
                 .filter(group -> (getModIds().contains(group.getModId())) || (group.getModId().equals(ModGroup.VANILLA_ID)))

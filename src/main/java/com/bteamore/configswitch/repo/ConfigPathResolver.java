@@ -27,7 +27,7 @@ public class ConfigPathResolver {
             }
         }
         Path active = gameDir.resolve(cfgDir).resolve(fileName);
-        Path global = RepoPaths.COMMON_DIR.resolve(modDir).resolve(fileName);
+        Path global = RepoPaths.commonDir().resolve(modDir).resolve(fileName);
         Path backupRoot;
         Path backup;
         switch (operation) {
@@ -36,7 +36,7 @@ public class ConfigPathResolver {
                 backup = backupRoot.resolve(timestamp).resolve(fileName);
             }
             case "push" -> {
-                backupRoot = RepoPaths.BACKUP_DIR;
+                backupRoot = RepoPaths.backupDir();
                 backup = backupRoot.resolve(timestamp).resolve(modDir).resolve(fileName);
             }
             default -> {

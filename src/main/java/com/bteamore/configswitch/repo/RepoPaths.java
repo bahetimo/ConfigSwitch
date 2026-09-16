@@ -1,14 +1,31 @@
 package com.bteamore.configswitch.repo;
 
+import com.bteamore.configswitch.config.ModConfig;
+import com.bteamore.configswitch.config.ModSettings;
+
 import java.nio.file.Path;
 
 public final class RepoPaths {
-    public static final Path ROOT = Path.of(System.getProperty("user.home"), "AppData", "Roaming", ".minecraft", "configswitch");
-    public static final Path GLOBAL_DIR = ROOT.resolve("global");
-    public static final Path COMMON_DIR = GLOBAL_DIR.resolve("common");
-    public static final Path BACKUP_DIR = ROOT.resolve("backup");
+    public static Path root() {
+        return ModSettings.DEFAULT_ROOT;
+    }
 
-    private RepoPaths() {
+    public static Path repoRoot() {
+        return Path.of(ModConfig.settings().repoRoot());
+    }
+
+    public static Path globalDir() {
+        return repoRoot().resolve("global");
+    }
+    public static Path commonDir() {
+        return globalDir().resolve("common");
+    }
+    public static Path backupDir() {
+        return repoRoot().resolve("backup");
+    }
+
+    public static Path defaultConfigPath() {
+        return root().resolve("configswitch-config.json");
     }
 
     public static Path localBackupDir(Path gameDir) {
