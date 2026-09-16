@@ -23,6 +23,10 @@ public class ConfigHandlerTest {
     // SyncReport 以 modId 为 key 聚合，不跨 mod 的用例统一用这个占位值
     private static final String MOD_ID = "test-mod";
 
+    // 备份保留份数：显式注入给 handler（生产由 ModConfig.settings() 提供）
+    // 刻意取一个与 ModSettings 默认值不同的数，确保断言的是注入值而不是某处的硬编码
+    private static final int MAX_BACKUP_COUNT = 5;
+
     // 与生产 backup 路径结构对齐的时间戳目录名
     private static final String TS = "2026-09-07--00-00-00";
 
@@ -75,7 +79,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertTrue(Files.exists(paths.backup()));
@@ -90,7 +94,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.active().getParent());
         Files.writeString(paths.active(), "new");
 
-        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertFalse(Files.exists(paths.backup()));
@@ -105,7 +109,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.active(), "new");
 
         // List.of 不允许 null 元素，用 Arrays.asList 构造含 null 的列表
-        SyncReport report = new ConfigHandler().pushActiveToGlobal(Arrays.asList(null, paths));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(Arrays.asList(null, paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertFalse(Files.exists(paths.backup()));
@@ -124,7 +128,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.active().getParent());
         Files.writeString(paths.active(), "old");
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(paths));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(paths));
 
         assertEquals("new", Files.readString(paths.active()));
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
@@ -138,7 +142,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.active(), "old");
         // global 文件不创建
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(paths));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(paths));
 
         assertEquals("old", Files.readString(paths.active()));
         assertFalse(Files.exists(paths.backup()));
@@ -160,7 +164,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(covered.active().getParent());
         Files.writeString(covered.active(), "old");
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(skipped, covered));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(skipped, covered));
 
         // global 缺失：active 保持原值
         assertEquals("local", Files.readString(skipped.active()));
@@ -184,7 +188,7 @@ public class ConfigHandlerTest {
         ConfigPaths neverPushed = newPaths("b.cfg");
         write(neverPushed.active(), "local-b"); // global 缺失 → SKIPPED
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(ok, neverPushed));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(ok, neverPushed));
 
         assertEquals(1, report.results().size()); // 同 mod 只保留一条
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
@@ -202,7 +206,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "old-b");
         write(broken.global(), "new-b");
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(ok, broken));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(ok, broken));
 
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
@@ -220,7 +224,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "old-b");
         write(broken.global(), "new-b");
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(neverPushed, broken));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(neverPushed, broken));
 
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
         assertEquals(1, report.count(SyncOutcome.FAILED));
@@ -236,7 +240,7 @@ public class ConfigHandlerTest {
         ConfigPaths neverPushed = newPaths("b.cfg");
         write(neverPushed.active(), "local-b"); // global 缺失 → SKIPPED（后处理）
 
-        SyncReport report = new ConfigHandler().fetchGlobalToActive(List.of(broken, neverPushed));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(broken, neverPushed));
 
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
     }
@@ -251,7 +255,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "local-new-b");
         write(broken.global(), "repo-old-b"); // global 已存在 → 触发备份，而备份失败 → FAILED
 
-        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(ok, broken));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(ok, broken));
 
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
@@ -268,7 +272,7 @@ public class ConfigHandlerTest {
         write(b.active(), "b");
         write(b.global(), "old-b");
 
-        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(a, b));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(a, b));
 
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
@@ -287,7 +291,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "b");
         write(broken.global(), "old-b");
 
-        SyncReport report = new ConfigHandler().pushActiveToGlobal(List.of(ok, broken));
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(ok, broken));
 
         assertEquals(2, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get("mod-one"));
@@ -340,7 +344,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve("options.txt"), "old");
 
-        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
 
         // 恢复结果
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
@@ -356,7 +360,7 @@ public class ConfigHandlerTest {
         BackupSnapshot snapshot = makeSnapshot(backupRoot, Path.of("options.txt"), "new");
         Path targetRoot = tempDir.resolve("target"); // 目标不存在
 
-        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
         assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
@@ -381,7 +385,7 @@ public class ConfigHandlerTest {
         write(targetRoot.resolve("b.cfg"), "old-b");
         // c.cfg 目标不存在
 
-        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
 
         assertEquals(3, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get("a.cfg"));
@@ -406,7 +410,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "local");
 
-        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
 
         assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
         assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
@@ -426,7 +430,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "old");
 
-        SyncReport report = new ConfigHandler().restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve(relative)));
         // null 条目没有相对路径，不进报告
@@ -464,7 +468,7 @@ public class ConfigHandlerTest {
     void testPruneKeepsOnlyNewestBackups() throws IOException {
         Path backupRoot = tempDir.resolve("backups");
         Files.createDirectories(backupRoot);
-        int total = ConfigHandler.MAX_BACKUP_COUNT + 3;
+        int total = MAX_BACKUP_COUNT + 3;
         for (int i = 0; i < total; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
@@ -476,11 +480,11 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
-            assertEquals(ConfigHandler.MAX_BACKUP_COUNT, remaining.size());
+            assertEquals(MAX_BACKUP_COUNT, remaining.size());
             // 最旧的 4 个（00、01、02、03）应被删除，保留 04..total
             assertFalse(remaining.contains(String.format(TS_FMT, 0)));
             assertFalse(remaining.contains(String.format(TS_FMT, 1)));
@@ -496,7 +500,7 @@ public class ConfigHandlerTest {
     void testPruneIgnoresNonTimestampEntries() throws IOException {
         Path backupRoot = tempDir.resolve("backups");
         Files.createDirectories(backupRoot);
-        for (int i = 0; i < ConfigHandler.MAX_BACKUP_COUNT + 1; i++) {
+        for (int i = 0; i < MAX_BACKUP_COUNT + 1; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
         Path keepMe = backupRoot.resolve("keep-me.txt");
@@ -510,7 +514,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         assertTrue(Files.exists(keepMe));
         assertTrue(Files.exists(keepDir));
@@ -525,7 +529,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(oldest.resolve("nested/deep"));
         Files.writeString(oldest.resolve("nested/deep/a.cfg"), "a");
         Files.writeString(oldest.resolve("b.cfg"), "b");
-        for (int i = 1; i <= ConfigHandler.MAX_BACKUP_COUNT; i++) {
+        for (int i = 1; i <= MAX_BACKUP_COUNT; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
 
@@ -535,7 +539,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         // 最旧的非空目录应被整体删除
         assertFalse(Files.exists(oldest));
@@ -549,7 +553,7 @@ public class ConfigHandlerTest {
     void testPruneDoesNothingWhenCountEqualsMax() throws IOException {
         Path backupRoot = tempDir.resolve("backups");
         Files.createDirectories(backupRoot);
-        for (int i = 0; i < ConfigHandler.MAX_BACKUP_COUNT; i++) {
+        for (int i = 0; i < MAX_BACKUP_COUNT; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
 
@@ -559,12 +563,12 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
             // 总数 MAX+1，prune 后保留 MAX 个
-            assertEquals(ConfigHandler.MAX_BACKUP_COUNT, remaining.size());
+            assertEquals(MAX_BACKUP_COUNT, remaining.size());
             // 最旧的 00 被删除
             assertFalse(remaining.contains(String.format(TS_FMT, 0)));
             // 最新的 99 保留
@@ -577,7 +581,7 @@ public class ConfigHandlerTest {
     void testPruneDoesNothingWhenCountBelowMax() throws IOException {
         Path backupRoot = tempDir.resolve("backups");
         Files.createDirectories(backupRoot);
-        int count = ConfigHandler.MAX_BACKUP_COUNT - 3;
+        int count = MAX_BACKUP_COUNT - 3;
         for (int i = 0; i < count; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
@@ -588,7 +592,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
@@ -609,7 +613,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.global(), "old");
 
         // 不应抛出异常
-        assertDoesNotThrow(() -> new ConfigHandler().pushActiveToGlobal(List.of(paths)));
+        assertDoesNotThrow(() -> new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths)));
 
         // 新备份应被创建
         assertTrue(Files.exists(backupRoot.resolve(String.format(TS_FMT, 0))));
@@ -628,7 +632,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.global(), "old");
 
         // 不应抛出异常（copy 会创建目录，prune 会处理空目录）
-        assertDoesNotThrow(() -> new ConfigHandler().pushActiveToGlobal(List.of(paths)));
+        assertDoesNotThrow(() -> new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths)));
     }
 
     // prune：时间戳排序正确性 - 确保按时间戳排序而非字典序
@@ -640,7 +644,7 @@ public class ConfigHandlerTest {
         // 例如：2026-09-07--09-00-00 字典序 < 2026-09-07--10-00-00，但时间序也正确
         // 更关键的是：2026-09-07--09-00-00 vs 2026-09-07--1-00-00（如果格式不固定宽度）
         // 由于格式是固定宽度 %02d，这里主要验证排序逻辑本身
-        for (int i = 0; i < ConfigHandler.MAX_BACKUP_COUNT + 2; i++) {
+        for (int i = 0; i < MAX_BACKUP_COUNT + 2; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
 
@@ -650,17 +654,17 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
-            assertEquals(ConfigHandler.MAX_BACKUP_COUNT, remaining.size());
+            assertEquals(MAX_BACKUP_COUNT, remaining.size());
             // 最旧的 3 个（00、01、02）应被删除
             assertFalse(remaining.contains(String.format(TS_FMT, 0)));
             assertFalse(remaining.contains(String.format(TS_FMT, 1)));
             assertFalse(remaining.contains(String.format(TS_FMT, 2)));
             // 最新的应保留
-            assertTrue(remaining.contains(String.format(TS_FMT, ConfigHandler.MAX_BACKUP_COUNT + 1)));
+            assertTrue(remaining.contains(String.format(TS_FMT, MAX_BACKUP_COUNT + 1)));
         }
     }
 
@@ -675,7 +679,7 @@ public class ConfigHandlerTest {
         Path oldest = backupRoot.resolve(String.format(TS_FMT, 0));
         Files.createDirectories(oldest);
         Files.writeString(oldest.resolve("single.cfg"), "content");
-        for (int i = 1; i <= ConfigHandler.MAX_BACKUP_COUNT; i++) {
+        for (int i = 1; i <= MAX_BACKUP_COUNT; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
 
@@ -685,7 +689,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         assertFalse(Files.exists(oldest));
         assertFalse(Files.exists(oldest.resolve("single.cfg")));
@@ -699,7 +703,7 @@ public class ConfigHandlerTest {
         // 造 MAX+1 个时间戳目录，最旧的那个是空目录
         Path oldest = backupRoot.resolve(String.format(TS_FMT, 0));
         Files.createDirectories(oldest);
-        for (int i = 1; i <= ConfigHandler.MAX_BACKUP_COUNT; i++) {
+        for (int i = 1; i <= MAX_BACKUP_COUNT; i++) {
             makeBackupDir(backupRoot, String.format(TS_FMT, i));
         }
 
@@ -709,7 +713,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler().pushActiveToGlobal(List.of(paths));
+        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         assertFalse(Files.exists(oldest));
     }

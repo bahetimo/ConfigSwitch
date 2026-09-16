@@ -1,5 +1,6 @@
 package com.bteamore.configswitch;
 
+import com.bteamore.configswitch.config.ModConfig;
 import com.bteamore.configswitch.repo.GlobalRepo;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ public class Configswitch implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        ModConfig.load();
         GlobalRepo.init();
         LOGGER.info("ConfigSwitch loaded!");
     }

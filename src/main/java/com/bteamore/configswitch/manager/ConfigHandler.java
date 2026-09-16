@@ -18,12 +18,16 @@ import java.util.List;
 import java.util.Map;
 
 public class ConfigHandler implements IConfigFileService {
-    public static final int MAX_BACKUP_COUNT = 10;
+    private final int maxBackupCount;
     private static final Map<SyncOutcome, Integer> PRIORITY = Map.of(
             SyncOutcome.FAILED, 3,
             SyncOutcome.SUCCESS, 2,
             SyncOutcome.SKIPPED, 1
     );
+
+    public ConfigHandler(int maxBackupCount) {
+        this.maxBackupCount = maxBackupCount;
+    }
 
     @Override
     public SyncReport pushActiveToGlobal(List<ConfigPaths> paths) {
@@ -132,7 +136,7 @@ public class ConfigHandler implements IConfigFileService {
                     .filter(file -> Time.BACKUP_FILE_PATTERN.matcher(file.getFileName().toString()).matches())
                     .sorted(Comparator.comparing(path -> path.getFileName().toString(), Comparator.reverseOrder()))
                     .toList();
-            for (int i = MAX_BACKUP_COUNT; i < backups.size(); i++) {
+            for (int i = maxBackupCount; i < backups.size(); i++) {
                 this.deleteRecursively(backups.get(i));
             }
         } catch (IOException e) {

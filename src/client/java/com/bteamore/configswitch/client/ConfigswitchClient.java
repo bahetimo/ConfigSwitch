@@ -1,6 +1,7 @@
 package com.bteamore.configswitch.client;
 
 import com.bteamore.configswitch.client.gui.ConfigScreen;
+import com.bteamore.configswitch.config.ModConfig;
 import com.bteamore.configswitch.core.ConfigFileServices;
 import com.bteamore.configswitch.manager.ConfigHandler;
 import net.fabricmc.api.ClientModInitializer;
@@ -15,7 +16,7 @@ public class ConfigswitchClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ConfigFileServices.register(new ConfigHandler());
+        ConfigFileServices.register(new ConfigHandler(ModConfig.settings().maxBackupCount()));
 
         openConfigScreen = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.configswitch.open",
