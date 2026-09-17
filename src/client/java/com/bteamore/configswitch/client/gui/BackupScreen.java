@@ -60,7 +60,7 @@ public class BackupScreen extends Screen {
     }
 
     private Path targetRoot() {
-        return source == Source.LOCAL ? gameDir.resolve("config") : RepoPaths.commonDir();
+        return source == Source.LOCAL ? gameDir : RepoPaths.commonDir();
     }
 
     @Override

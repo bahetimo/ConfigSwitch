@@ -36,7 +36,7 @@ public class ConfigHandlerTest {
 
     // 指定 modId，用于断言 SyncReport 按 modId 聚合
     private ConfigPaths newPaths(String modId, String fileName) {
-        // backup 路径带时间戳目录，与生产结构（backupRoot/<ts>/<fileName>）对齐
+        // backup 路径带时间戳目录；handler 只按传入路径读写、不关心目录内部结构，这里用扁平形式简化
         Path backupRoot = tempDir.resolve("backup");
         return new ConfigPaths(
                 fileName,

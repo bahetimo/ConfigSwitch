@@ -33,7 +33,7 @@ public class ConfigPathResolver {
         switch (operation) {
             case "fetch" -> {
                 backupRoot = RepoPaths.localBackupDir(gameDir);
-                backup = backupRoot.resolve(timestamp).resolve(fileName);
+                backup = backupRoot.resolve(timestamp).resolve(cfgDir).resolve(fileName);
             }
             case "push" -> {
                 backupRoot = RepoPaths.backupDir();
