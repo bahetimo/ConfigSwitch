@@ -70,9 +70,7 @@ public class ConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        this.allGroups = (allGroups == null) ? this.discovery.discoverLocal().stream()
-                .filter(group -> !ModGroup.UNCATEGORIZED_ID.equals(group.getModId()))
-                .toList() : allGroups;
+        this.allGroups = (allGroups == null) ? this.discovery.discoverLocal() : allGroups;
         // 中部列表区域：左右留边距，占满标题与底部搜索行之间的空间
         // mod配置列表
         int listWidth = this.width - MARGIN_X * 2;

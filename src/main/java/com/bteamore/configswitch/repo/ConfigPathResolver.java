@@ -22,9 +22,9 @@ public class ConfigPathResolver {
                 modDir = "";
                 cfgDir = "";
             }
-            case "uncategorized" -> {
-                return null; // Uncategorized不处理
-            }
+            // case "uncategorized" -> {
+            //     return null; // Uncategorized不处理
+            // }
         }
         Path active = gameDir.resolve(cfgDir).resolve(fileName);
         Path global = RepoPaths.commonDir().resolve(modDir).resolve(fileName);

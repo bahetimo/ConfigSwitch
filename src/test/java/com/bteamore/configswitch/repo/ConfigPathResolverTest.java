@@ -66,12 +66,18 @@ public class ConfigPathResolverTest {
         assertEquals(gameDir.resolve("config").resolve("switch").resolve("backup"), paths.backupRoot());
     }
 
-    // uncategorized 组不处理，返回 null
+    // uncategorized 的 null 分支已暂时注释：按普通 mod 组解析（若恢复该分支，本用例需改回 assertNull）
     @Test
-    void testResolveUncategorizedReturnsNull() {
+    void testResolveUncategorizedTreatedAsMod() {
         ConfigPathResolver resolver = new ConfigPathResolver(gameDir);
 
-        assertNull(resolver.resolve("uncategorized", "foo.cfg", "ts", "fetch"));
+        ConfigPaths paths = resolver.resolve("uncategorized", "foo.cfg", "ts", "fetch");
+
+        assertNotNull(paths);
+        assertEquals("uncategorized", paths.modId());
+        assertEquals(gameDir.resolve("config").resolve("foo.cfg"), paths.active());
+        assertEquals(COMMON_DIR.resolve("uncategorized").resolve("foo.cfg"), paths.global());
+        assertEquals(fetchBackup("ts", "config", "foo.cfg"), paths.backup());
     }
 
     // null modId 返回 null
