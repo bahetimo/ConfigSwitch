@@ -5,13 +5,16 @@ import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.IConfigFileService;
 import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
+import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.util.Hash;
 import com.bteamore.configswitch.util.Time;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,11 +86,17 @@ public class ConfigHandler implements IConfigFileService {
                 backupRoot = target.backupRoot();
             }
 
+            boolean isVanilla = ModGroup.VANILLA_ID.equals(target.modId());
+            int hashBefore = isVanilla ? 0 : Hash.hashOf(target.active());
+
             boolean copyOk = copy(target.global(), target.active());
             if (!backupOk || !copyOk) {
                 priorityMerge(results, target.modId(), SyncOutcome.FAILED);
             } else {
                 priorityMerge(results, target.modId(), SyncOutcome.SUCCESS);
+            }
+            if (copyOk && !isVanilla){
+                PendingRewrites.add(target.active(), target.global(), hashBefore);
             }
         }
         if (backupRoot != null) {
