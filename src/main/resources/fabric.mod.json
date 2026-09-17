@@ -3,12 +3,12 @@
   "id": "configswitch",
   "version": "${version}",
   "name": "ConfigSwitch",
-  "description": "",
-  "authors": [],
+  "description": "Synchronize your mod configs and options.txt between modpacks. Push your tuned settings to a global repository once, then fetch them into any other instance.",
+  "authors": ["bahetimo"],
   "contact": {},
-  "license": "All-Rights-Reserved",
+  "license": "MIT",
   "icon": "assets/configswitch/icon.png",
-  "environment": "*",
+  "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
       "com.bteamore.configswitch.client.ConfigswitchDataGenerator"
