@@ -25,16 +25,16 @@ public record ModSettings(String repoRoot, int maxBackupCount) {
 
     public static String validateRepoRoot(String raw) {
         if (raw == null || raw.isBlank())
-            return "路径不能为空";
+            return "configswitch.error.path_blank";
 
         Path path;
         try {
             path = Path.of(raw);
             if (!path.isAbsolute()) {
-                return "请填写完整路径";
+                return "configswitch.error.path_relative";
             }
         } catch (InvalidPathException e) {
-            return "路径包含非法字符";
+            return "configswitch.error.path_illegal";
         }
 
         Path ancestor = path;
@@ -43,18 +43,20 @@ public record ModSettings(String repoRoot, int maxBackupCount) {
                 // 只校验不创建
                 if (Files.readAttributes(ancestor, BasicFileAttributes.class).isDirectory()) {
                     // 存在且是目录还不够：不可写的话保存能过、重启后 push/fetch 全失败
-                    return Files.isWritable(ancestor) ? null : "路径不可写";
+                    return Files.isWritable(ancestor) ? null : "configswitch.error.path_unwritable";
                 }
-                return ancestor.equals(path) ? "该路径已存在同名文件" : "上级路径不是文件夹";
+                return ancestor.equals(path)
+                        ? "configswitch.error.path_is_file"
+                        : "configswitch.error.parent_not_dir";
             } catch (NoSuchFileException e) {
                 // 这一级还没建过：继续向上找最近的已存在目录，不创建任何东西
                 ancestor = ancestor.getParent();
             } catch (IOException e) {
                 Configswitch.LOGGER.error("路径不可访问: {}", e.getMessage());
-                return "路径不可访问";
+                return "configswitch.error.path_inaccessible";
             }
         }
-        return "路径不可访问";
+        return "configswitch.error.path_inaccessible";
     }
 
     public static boolean isSyntacticallyValid(ModSettings s) {

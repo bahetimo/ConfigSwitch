@@ -59,8 +59,9 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
             }
         } else {
             context.drawTextWithShadow(textRenderer, trimWithEllipsis(textRenderer, this.fileNames.get(0), fileMaxWidth), x + FILE_INDENT, fileY, FILE_COLOR);
-            String hiddenFilesHint = "… 还有 " + (this.fileNames.size() - 1) + " 个文件";
-            context.drawTextWithShadow(textRenderer, hiddenFilesHint, x + FILE_INDENT, fileY + LINE_HEIGHT, FILE_COLOR);
+            context.drawTextWithShadow(textRenderer,
+                    Text.translatable("configswitch.label.files_more", this.fileNames.size() - 1),
+                    x + FILE_INDENT, fileY + LINE_HEIGHT, FILE_COLOR);
         }
     }
 

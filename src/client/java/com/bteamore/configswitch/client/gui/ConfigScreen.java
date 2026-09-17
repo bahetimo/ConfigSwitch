@@ -16,6 +16,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 
 import java.nio.file.Path;
@@ -55,7 +56,7 @@ public class ConfigScreen extends Screen {
     private List<ModGroup> allGroups;
     private final Set<String> selectedModIds = new HashSet<>();
     private String searchText;
-    private String message;
+    private Text message;
 
     private final Path gameDir = MinecraftClient.getInstance().runDirectory.toPath();
 
@@ -65,7 +66,7 @@ public class ConfigScreen extends Screen {
     private SyncReport lastReport;
 
     public ConfigScreen() {
-        super(Text.literal("Config Switch"));
+        super(Text.translatable("configswitch.screen.config"));
     }
 
     @Override
@@ -86,8 +87,8 @@ public class ConfigScreen extends Screen {
         // 窗口过窄时收缩搜索框，避免与快捷按钮重叠
         int searchWidth = Math.min(SEARCH_WIDTH, quickButtonX - MARGIN_X - SEARCH_GAP);
         // 搜索框
-        this.searchField = new TextFieldWidget(MinecraftClient.getInstance().textRenderer, MARGIN_X, searchY, searchWidth, SEARCH_HEIGHT, Text.literal("搜索"));
-        this.searchField.setPlaceholder(Text.literal("搜索…"));
+        this.searchField = new TextFieldWidget(MinecraftClient.getInstance().textRenderer, MARGIN_X, searchY, searchWidth, SEARCH_HEIGHT, Text.translatable("configswitch.search.placeholder"));
+        this.searchField.setPlaceholder(Text.translatable("configswitch.search.placeholder"));
         this.searchField.setText((this.searchText != null) ? this.searchText : "");
         this.searchField.setChangedListener(searchText -> {
             this.searchText = searchText;
@@ -95,15 +96,15 @@ public class ConfigScreen extends Screen {
         });
 
         // 快捷按钮
-        ButtonWidget allSelected = ButtonWidget.builder(Text.literal("全选"), btn -> setAllSelected(true))
+        ButtonWidget allSelected = ButtonWidget.builder(Text.translatable("configswitch.button.select_all"), btn -> setAllSelected(true))
                 .dimensions(quickButtonX, searchY, QUICK_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
         quickButtonX += QUICK_BUTTON_WIDTH + QUICK_BUTTON_GAP;
-        ButtonWidget noneSelected = ButtonWidget.builder(Text.literal("全不选"), btn -> setAllSelected(false))
+        ButtonWidget noneSelected = ButtonWidget.builder(Text.translatable("configswitch.button.select_none"), btn -> setAllSelected(false))
                 .dimensions(quickButtonX, searchY, QUICK_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
         quickButtonX += QUICK_BUTTON_WIDTH + QUICK_BUTTON_GAP;
-        ButtonWidget invertSelected = ButtonWidget.builder(Text.literal("反选"), btn -> invertSelection())
+        ButtonWidget invertSelected = ButtonWidget.builder(Text.translatable("configswitch.button.invert"), btn -> invertSelection())
                 .dimensions(quickButtonX, searchY, QUICK_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
@@ -114,7 +115,7 @@ public class ConfigScreen extends Screen {
         int startX = (this.width - rowWidth) / 2;
 
         // Fetch / Push 按钮
-        this.fetchButton = ButtonWidget.builder(Text.literal("Fetch"), btn -> {
+        this.fetchButton = ButtonWidget.builder(Text.translatable("configswitch.button.fetch"), btn -> {
                     boolean load = onPress("fetch");
                     if (load) {
                         MinecraftClient.getInstance().options.load();
@@ -122,22 +123,22 @@ public class ConfigScreen extends Screen {
                 })
                 .dimensions(startX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
-        this.pushButton = ButtonWidget.builder(Text.literal("Push"), btn -> onPress("push"))
+        this.pushButton = ButtonWidget.builder(Text.translatable("configswitch.button.push"), btn -> onPress("push"))
                 .dimensions(startX + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
         // 备份管理
-        this.backupButton = ButtonWidget.builder(Text.literal("备份"),
-                        btn -> MinecraftClient.getInstance().setScreen(new BackupScreen(Text.literal("备份管理"), this.gameDir, this)))
+        this.backupButton = ButtonWidget.builder(Text.translatable("configswitch.button.backup"),
+                        btn -> MinecraftClient.getInstance().setScreen(new BackupScreen(Text.translatable("configswitch.screen.backup"), this.gameDir, this)))
                 .dimensions(MARGIN_X, buttonY, BACKUP_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
         // 完成按钮
-        this.doneButton = ButtonWidget.builder(Text.literal("完成"), btn -> this.close())
+        this.doneButton = ButtonWidget.builder(Text.translatable("configswitch.button.done"), btn -> this.close())
                 .dimensions(this.width - MARGIN_X - DONE_BUTTON_WIDTH, buttonY, DONE_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
         // 右上角：设置入口
-        this.settingsButton = ButtonWidget.builder(Text.literal("设置"),
-                        btn -> MinecraftClient.getInstance().setScreen(new SettingsScreen(Text.literal("设置"), this)))
+        this.settingsButton = ButtonWidget.builder(Text.translatable("configswitch.button.settings"),
+                        btn -> MinecraftClient.getInstance().setScreen(new SettingsScreen(Text.translatable("configswitch.screen.settings"), this)))
                 .dimensions(this.width - MARGIN_X - SETTINGS_BUTTON_WIDTH, SETTINGS_BUTTON_Y, SETTINGS_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
@@ -159,7 +160,7 @@ public class ConfigScreen extends Screen {
                 .toList();
 
         if (selectedGroups.isEmpty()) {
-            this.message = "没有选择任何模组!";
+            this.message = Text.translatable("configswitch.message.no_selection");
             return false;
         }
         this.message = null;
@@ -180,26 +181,34 @@ public class ConfigScreen extends Screen {
         return true;
     }
 
-    private String buildMessage(String name, SyncReport report) {
+    private Text buildMessage(String name, SyncReport report) {
         int success = report.count(SyncOutcome.SUCCESS);
         int failed = report.count(SyncOutcome.FAILED);
         int skipped = report.count(SyncOutcome.SKIPPED);
 
-        String prefix = "push".equals(name) ? "Push" : "Fetch";
+        String headKey = "configswitch.message." + name + ".head";
 
         if (report.results().isEmpty()) {
-            return "没有可同步的内容";
+            return Text.translatable("configswitch.message.nothing");
         }
         if (success == 0 && failed == 0) {
-            return "没有可同步的内容，" + skipped + " 个跳过";
+            // 全部跳过
+            return Text.translatable("configswitch.message.nothing")
+                    .append(Text.translatable("configswitch.message.suffix.skipped", skipped));
         }
 
-        String join = String.join("、", report.failedModIds());
-
-        return String.format("%s 完成：%d 个模组", prefix, success) +
-                (failed > 0 ? String.format("，%d 个失败（%s）", failed, join) : "") +
-                (skipped > 0 ? String.format("，%d 个跳过", skipped) : "") +
-                ((prefix.equals("Fetch") && involvesModConfig(report)) ? "；部分配置需重启游戏生效" : "");
+        MutableText msg = Text.translatable(headKey, success);
+        if (failed > 0) {
+            String join = String.join(Text.translatable("configswitch.label.list_sep").getString(), report.failedModIds());
+            msg.append(Text.translatable("configswitch.message.suffix.failed", failed, join));
+        }
+        if (skipped > 0) {
+            msg.append(Text.translatable("configswitch.message.suffix.skipped", skipped));
+        }
+        if ("fetch".equals(name) && involvesModConfig(report)) {
+            msg.append(Text.translatable("configswitch.message.suffix.restart"));
+        }
+        return msg;
     }
 
     private boolean involvesModConfig(SyncReport report) {
@@ -211,9 +220,11 @@ public class ConfigScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
-        // 暂时显示状态机的当前状态或 msg
-        String msg = (this.message == null) ? ("当前状态：" + stateManager.getCurrentState().name()) : this.message;
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(msg), this.width / 2, TITLE_Y + 12, 0xAAAAAA);
+        // 没有消息时退化为显示状态机当前状态（开发期可见）
+        Text msg = (this.message == null)
+                ? Text.translatable("configswitch.message.state", stateManager.getCurrentState().name())
+                : this.message;
+        context.drawCenteredTextWithShadow(this.textRenderer, msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
     }
 
     private List<ModGroup> visibleGroups() {

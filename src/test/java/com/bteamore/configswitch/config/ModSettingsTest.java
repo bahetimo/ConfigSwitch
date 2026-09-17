@@ -126,20 +126,22 @@ public class ModSettingsTest {
     }
 
     // ---------- validateRepoRoot ----------
+    // 注意：校验失败时返回的是【翻译 key】而不是文案——因为它在 main 层，不能依赖 MC 的 Text，
+    // 由 UI 层调用 Text.translatable(key) 显示。文案见 assets/configswitch/lang/。
 
     // null / 空串 / 全空白 → 返回提示而不是 null
     @Test
     void testValidateRejectsBlankPath() {
-        assertEquals("路径不能为空", ModSettings.validateRepoRoot(null));
-        assertEquals("路径不能为空", ModSettings.validateRepoRoot(""));
-        assertEquals("路径不能为空", ModSettings.validateRepoRoot("   "));
+        assertEquals("configswitch.error.path_blank", ModSettings.validateRepoRoot(null));
+        assertEquals("configswitch.error.path_blank", ModSettings.validateRepoRoot(""));
+        assertEquals("configswitch.error.path_blank", ModSettings.validateRepoRoot("   "));
     }
 
     // 相对路径 → 直接提示要完整路径，不落到后面的存在性检查上
     @Test
     void testValidateRejectsRelativePath() {
-        assertEquals("请填写完整路径", ModSettings.validateRepoRoot("relative-repo"));
-        assertEquals("请填写完整路径", ModSettings.validateRepoRoot("nested" + "\\" + "deep"));
+        assertEquals("configswitch.error.path_relative", ModSettings.validateRepoRoot("relative-repo"));
+        assertEquals("configswitch.error.path_relative", ModSettings.validateRepoRoot("nested" + "\\" + "deep"));
     }
 
     // 合法但还不存在的路径 → 返回 null；只校验不创建，目录不该被建出来
@@ -180,8 +182,8 @@ public class ModSettingsTest {
         aclView.setAcl(denied);
         try {
             // 落点本身 / 落点还不存在（用户输入 Program Files 下的新目录）都要挡住
-            assertEquals("路径不可写", ModSettings.validateRepoRoot(locked.toString()));
-            assertEquals("路径不可写", ModSettings.validateRepoRoot(locked.resolve("sub").toString()));
+            assertEquals("configswitch.error.path_unwritable", ModSettings.validateRepoRoot(locked.toString()));
+            assertEquals("configswitch.error.path_unwritable", ModSettings.validateRepoRoot(locked.resolve("sub").toString()));
         } finally {
             // 撤掉 ACE，别影响 @TempDir 清理
             aclView.setAcl(original);
@@ -194,8 +196,8 @@ public class ModSettingsTest {
         Path file = tempDir.resolve("not-a-dir");
         Files.writeString(file, "not a directory");
 
-        assertEquals("该路径已存在同名文件", ModSettings.validateRepoRoot(file.toString()));
-        assertEquals("上级路径不是文件夹", ModSettings.validateRepoRoot(file.resolve("repo").toString()));
+        assertEquals("configswitch.error.path_is_file", ModSettings.validateRepoRoot(file.toString()));
+        assertEquals("configswitch.error.parent_not_dir", ModSettings.validateRepoRoot(file.resolve("repo").toString()));
     }
 
     // 语法异常（Windows 下 * 等、以及 NUL）→ 单独一类提示，而不是抛 InvalidPathException
@@ -205,7 +207,7 @@ public class ModSettingsTest {
         List<String> illegalPaths = List.of(tempDir + "\\in*valid", tempDir + "\\nul\u0000char");
 
         for (String illegal : illegalPaths) {
-            assertEquals("路径包含非法字符", ModSettings.validateRepoRoot(illegal));
+            assertEquals("configswitch.error.path_illegal", ModSettings.validateRepoRoot(illegal));
         }
     }
 
@@ -214,6 +216,6 @@ public class ModSettingsTest {
     void testValidateReportsInaccessiblePath() {
         String tooLong = tempDir.resolve("a".repeat(300)).toString();
 
-        assertEquals("路径不可访问", ModSettings.validateRepoRoot(tooLong));
+        assertEquals("configswitch.error.path_inaccessible", ModSettings.validateRepoRoot(tooLong));
     }
 }

@@ -13,6 +13,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 
 import java.nio.file.Path;
@@ -42,7 +43,7 @@ public class BackupScreen extends Screen {
     private BackupListWidget backupList;
     private ButtonWidget backButton;
 
-    private String message;
+    private Text message;
 
     private final BackupScanner scanner = new BackupScanner();
     private final StateManager stateManager = StateManager.getInstance();
@@ -77,14 +78,14 @@ public class BackupScreen extends Screen {
         int sourceRowWidth = SOURCE_BUTTON_WIDTH * 2 + SOURCE_BUTTON_GAP;
         int sourceStartX = (this.width - sourceRowWidth) / 2;
         // 来源切换：当前所在源的按钮置灰不可点，标明当前所在源
-        this.globalSourceButton = ButtonWidget.builder(Text.literal("全局备份"), button -> {
+        this.globalSourceButton = ButtonWidget.builder(Text.translatable("configswitch.button.source_global"), button -> {
                     switchSource(Source.GLOBAL);
                     this.refreshList();
                     updateSourceButton();
                 })
                 .dimensions(sourceStartX, buttonY, SOURCE_BUTTON_WIDTH, SOURCE_BUTTON_HEIGHT)
                 .build();
-        this.localSourceButton = ButtonWidget.builder(Text.literal("本地备份"), button -> {
+        this.localSourceButton = ButtonWidget.builder(Text.translatable("configswitch.button.source_local"), button -> {
                     switchSource(Source.LOCAL);
                     this.refreshList();
                     updateSourceButton();
@@ -94,7 +95,7 @@ public class BackupScreen extends Screen {
         updateSourceButton();
 
         // 返回
-        this.backButton = ButtonWidget.builder(Text.literal("返回"), button -> this.close())
+        this.backButton = ButtonWidget.builder(Text.translatable("configswitch.button.back"), button -> this.close())
                 .dimensions(this.width - MARGIN_X - BACK_BUTTON_WIDTH, buttonY, BACK_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
@@ -108,9 +109,11 @@ public class BackupScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
-        // 暂时显示状态机的当前状态或 msg
-        String msg = (this.message == null) ? ("当前状态：" + stateManager.getCurrentState().name()) : this.message;
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(msg), this.width / 2, TITLE_Y + 12, 0xAAAAAA);
+        // 没有消息时退化为显示状态机当前状态（开发期可见）
+        Text msg = (this.message == null)
+                ? Text.translatable("configswitch.message.state", stateManager.getCurrentState().name())
+                : this.message;
+        context.drawCenteredTextWithShadow(this.textRenderer, msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
     }
 
     @Override
@@ -134,7 +137,9 @@ public class BackupScreen extends Screen {
     // 二次确认
     private void confirmRestore(BackupSnapshot snapshot) {
         MinecraftClient client = MinecraftClient.getInstance();
-        String sourceName = this.source == Source.LOCAL ? "本地配置" : "全局配置";
+        Text sourceName = this.source == Source.LOCAL
+                ? Text.translatable("configswitch.source.local")
+                : Text.translatable("configswitch.source.global");
         client.setScreen(new ConfirmScreen(
                 confirmed -> {
                     if (confirmed) {
@@ -143,11 +148,11 @@ public class BackupScreen extends Screen {
                     // 不自动返回上级，需手动返回
                     client.setScreen(this);
                 },
-                Text.literal("确认恢复"),
-                Text.literal("将使用快照 " + snapshot.timeStamp() + " 覆盖当前 " + snapshot.relativePaths().size()
-                        + " 个文件（" + sourceName + "）。\n恢复前会自动备份当前文件，确定继续吗？"),
-                Text.literal("恢复"),
-                Text.literal("取消")));
+                Text.translatable("configswitch.confirm.restore.title"),
+                Text.translatable("configswitch.confirm.restore.text",
+                        snapshot.timeStamp(), snapshot.relativePaths().size(), sourceName),
+                Text.translatable("configswitch.button.restore"),
+                Text.translatable("configswitch.confirm.discard.no")));
     }
 
     private void onRestore(BackupSnapshot snapshot) {
@@ -159,24 +164,32 @@ public class BackupScreen extends Screen {
         this.refreshList();
     }
 
-    private String buildMessage(SyncReport report) {
+    private Text buildMessage(SyncReport report) {
         int success = report.count(SyncOutcome.SUCCESS);
         int failed = report.count(SyncOutcome.FAILED);
         int skipped = report.count(SyncOutcome.SKIPPED);
 
         if (report.results().isEmpty()) {
-            return "没有可恢复的内容";
+            return Text.translatable("configswitch.message.nothing");
         }
         if (success == 0 && failed == 0) {
-            return "没有可恢复的内容，" + skipped + " 个跳过";
+            // 全部跳过
+            return Text.translatable("configswitch.message.nothing")
+                    .append(Text.translatable("configswitch.message.suffix.skipped", skipped));
         }
 
-        String join = String.join("、", report.failedModIds());
-
-        return String.format("恢复完成：%d 个文件", success) +
-                (failed > 0 ? String.format("，%d 个失败（%s）", failed, join) : "") +
-                (skipped > 0 ? String.format("，%d 个跳过", skipped) : "") +
-                ((source.equals(Source.LOCAL) && involvesModConfig(report)) ? "；部分配置需重启游戏生效" : "");
+        MutableText msg = Text.translatable("configswitch.message.restore.head", success);
+        if (failed > 0) {
+            String join = String.join(Text.translatable("configswitch.label.list_sep").getString(), report.failedModIds());
+            msg.append(Text.translatable("configswitch.message.suffix.failed", failed, join));
+        }
+        if (skipped > 0) {
+            msg.append(Text.translatable("configswitch.message.suffix.skipped", skipped));
+        }
+        if (source == Source.LOCAL && involvesModConfig(report)) {
+            msg.append(Text.translatable("configswitch.message.suffix.restart"));
+        }
+        return msg;
     }
 
     private boolean involvesModConfig(SyncReport report) {

@@ -39,7 +39,7 @@ public class SettingsScreen extends Screen {
     private String editedRepoRoot;
     private int editedMaxBackupCount;
     private boolean messageIsError;
-    private String message;
+    private Text message;
 
     public SettingsScreen(Text title, Screen parent) {
         super(title);
@@ -58,9 +58,9 @@ public class SettingsScreen extends Screen {
         }
         // 仓库根路径：整行宽输入框
         int fieldWidth = this.width - MARGIN_X * 2;
-        this.repoField = new TextFieldWidget(MinecraftClient.getInstance().textRenderer, MARGIN_X, REPO_FIELD_Y, fieldWidth, FIELD_HEIGHT, Text.literal("仓库根路径"));
+        this.repoField = new TextFieldWidget(MinecraftClient.getInstance().textRenderer, MARGIN_X, REPO_FIELD_Y, fieldWidth, FIELD_HEIGHT, Text.translatable("configswitch.label.repo_root"));
         this.repoField.setMaxLength(512);
-        this.repoField.setPlaceholder(Text.literal("仓库根路径"));
+        this.repoField.setPlaceholder(Text.translatable("configswitch.label.repo_root"));
         this.repoField.setText(this.editedRepoRoot);
 
         // 保留备份数量：循环选择控件，固定宽右对齐
@@ -68,31 +68,31 @@ public class SettingsScreen extends Screen {
                 .values(ModSettings.ALLOWED_BACKUP_COUNTS)
                 .initially(this.editedMaxBackupCount)
                 .omitKeyText()
-                .build(this.width - MARGIN_X - COUNT_CONTROL_WIDTH, COUNT_CONTROL_Y, COUNT_CONTROL_WIDTH, FIELD_HEIGHT, Text.literal("保留备份数量"));
+                .build(this.width - MARGIN_X - COUNT_CONTROL_WIDTH, COUNT_CONTROL_Y, COUNT_CONTROL_WIDTH, FIELD_HEIGHT, Text.translatable("configswitch.label.max_backups"));
 
         // 底部：返回 / 保存居中并排
         int buttonY = this.height - BUTTON_HEIGHT - BOTTOM_MARGIN;
         int rowWidth = BUTTON_WIDTH * 2 + BUTTON_GAP;
         int startX = (this.width - rowWidth) / 2;
-        this.backButton = ButtonWidget.builder(Text.literal("返回"), button -> this.onBack())
+        this.backButton = ButtonWidget.builder(Text.translatable("configswitch.button.back"), button -> this.onBack())
                 .dimensions(startX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
-        this.saveButton = ButtonWidget.builder(Text.literal("保存"), button -> this.onSave())
+        this.saveButton = ButtonWidget.builder(Text.translatable("configswitch.button.save"), button -> this.onSave())
                 .dimensions(startX + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
         // 右上角：重置配置
-        this.resetButton = ButtonWidget.builder(Text.literal("重置配置"), button ->  this.client.setScreen(new ConfirmScreen(
+        this.resetButton = ButtonWidget.builder(Text.translatable("configswitch.button.reset"), button ->  this.client.setScreen(new ConfirmScreen(
                         result -> {
                             if (result) {
                                 this.onReset();
                             }
                             this.client.setScreen(this);
                         },
-                        Text.literal("重置配置？"),
-                        Text.literal("将恢复为默认配置并立即保存，确定吗？"),
-                        Text.literal("重置"),
-                        Text.literal("取消"))))
+                        Text.translatable("configswitch.confirm.reset.title"),
+                        Text.translatable("configswitch.confirm.reset.text"),
+                        Text.translatable("configswitch.confirm.reset.yes"),
+                        Text.translatable("configswitch.confirm.discard.no"))))
                 .dimensions(this.width - MARGIN_X - RESET_BUTTON_WIDTH, RESET_BUTTON_Y, RESET_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 
@@ -110,10 +110,10 @@ public class SettingsScreen extends Screen {
             this.repoField.setText(target.repoRoot());
             this.countControl.setValue(target.maxBackupCount());
             this.messageIsError = false;
-            this.message = "重置成功，重启游戏后生效";
+            this.message = Text.translatable("configswitch.message.reset_done");
         } else {
             this.messageIsError = true;
-            this.message = "重置失败";
+            this.message = Text.translatable("configswitch.message.reset_failed");
         }
     }
 
@@ -129,10 +129,10 @@ public class SettingsScreen extends Screen {
                             this.client.setScreen(this);
                         }
                     },
-                    Text.literal("放弃修改？"),
-                    Text.literal("有未保存的修改，确定放弃吗？"),
-                    Text.literal("放弃"),
-                    Text.literal("取消")));
+                    Text.translatable("configswitch.confirm.discard.title"),
+                    Text.translatable("configswitch.confirm.discard.text"),
+                    Text.translatable("configswitch.confirm.discard.yes"),
+                    Text.translatable("configswitch.confirm.discard.no")));
         } else {
             this.close();
         }
@@ -143,7 +143,8 @@ public class SettingsScreen extends Screen {
         String repoRootValidation = ModSettings.validateRepoRoot(repoRoot);
         if (repoRootValidation != null) {
             this.messageIsError = true;
-            this.message = repoRootValidation;
+            // validateRepoRoot 在 main 层，返回的是翻译 key，这里翻译成文案
+            this.message = Text.translatable(repoRootValidation);
             return;
         }
         int maxBackupCount = this.countControl.getValue();
@@ -151,10 +152,10 @@ public class SettingsScreen extends Screen {
         if (ModConfig.store().save(updated)) {
             this.onDisk = updated;
             this.messageIsError = false;
-            this.message = "保存成功，重启游戏后生效";
+            this.message = Text.translatable("configswitch.message.saved");
         } else {
             this.messageIsError = true;
-            this.message = "保存失败";
+            this.message = Text.translatable("configswitch.message.save_failed");
         }
 
     }
@@ -166,11 +167,11 @@ public class SettingsScreen extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
         if (this.message != null) {
             int color = this.messageIsError ? 0xFF5555 : 0xAAAAAA;
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(this.message), this.width / 2, TITLE_Y + 12, color);
+            context.drawCenteredTextWithShadow(this.textRenderer, this.message, this.width / 2, TITLE_Y + 12, color);
         }
         // 标签
-        context.drawTextWithShadow(this.textRenderer, "仓库根路径", MARGIN_X, REPO_LABEL_Y, 0xFFFFFF);
-        context.drawTextWithShadow(this.textRenderer, "保留备份数量", MARGIN_X, COUNT_LABEL_Y, 0xFFFFFF);
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("configswitch.label.repo_root"), MARGIN_X, REPO_LABEL_Y, 0xFFFFFF);
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("configswitch.label.max_backups"), MARGIN_X, COUNT_LABEL_Y, 0xFFFFFF);
     }
 
     @Override

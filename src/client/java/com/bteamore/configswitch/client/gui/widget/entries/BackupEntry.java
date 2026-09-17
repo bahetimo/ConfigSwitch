@@ -30,7 +30,7 @@ public class BackupEntry extends ElementListWidget.Entry<BackupEntry> {
         this.timestamp = timestamp;
         this.fileCount = fileCount;
 
-        this.restoreButton = ButtonWidget.builder(Text.literal("恢复"), button -> onRestore.accept(timestamp))
+        this.restoreButton = ButtonWidget.builder(Text.translatable("configswitch.button.restore"), button -> onRestore.accept(timestamp))
                 .dimensions(0, 0, RESTORE_BUTTON_WIDTH, RESTORE_BUTTON_HEIGHT)
                 .build();
     }
@@ -49,7 +49,7 @@ public class BackupEntry extends ElementListWidget.Entry<BackupEntry> {
         String trimmedTimestamp = trimWithEllipsis(textRenderer, this.timestamp, maxTextWidth);
         context.drawTextWithShadow(textRenderer, trimmedTimestamp, x + TEXT_INDENT, textY, TIMESTAMP_COLOR);
         // 文件数 暗色
-        String fileCountText = this.fileCount + " 个文件";
+        String fileCountText = Text.translatable("configswitch.label.file_count", this.fileCount).getString();
         int fileCountX = x + TEXT_INDENT + textRenderer.getWidth(trimmedTimestamp) + TEXT_GAP;
         context.drawTextWithShadow(textRenderer, trimWithEllipsis(textRenderer, fileCountText, buttonX - TEXT_GAP - fileCountX), fileCountX, textY, FILE_COUNT_COLOR);
 
