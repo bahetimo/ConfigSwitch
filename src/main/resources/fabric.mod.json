@@ -22,6 +22,9 @@
     ],
     "main": [
       "com.bteamore.configswitch.Configswitch"
+    ],
+    "modmenu": [
+      "com.bteamore.configswitch.client.integration.ModMenuIntegration"
     ]
   },
   "mixins": [
