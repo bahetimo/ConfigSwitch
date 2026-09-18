@@ -1,0 +1,56 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+        Please fill in as much as you can — the log section especially.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press H in-game
+        2. Tick "sodium"
+        3. Click Push
+        4. ...
+    validations:
+      required: true
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: ConfigSwitch version
+      placeholder: "1.0.0-alpha+1.21.1"
+    validations:
+      required: true
+
+  - type: input
+    id: mc-version
+    attributes:
+      label: Minecraft and Fabric Loader version
+      placeholder: "Minecraft 1.21.1, Fabric Loader 0.16.10"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: logs/latest.log
+      description: |
+        Drag your `logs/latest.log` in here (or paste the relevant part).
+        It shows what ConfigSwitch was doing when things went wrong —
+        without it we usually can't tell what happened.
+    validations:
+      required: true

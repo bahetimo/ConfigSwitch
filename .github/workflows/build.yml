@@ -1,8 +1,8 @@
 name: Build
 
 on:
+  # 任何分支的 push 都跑——单人开发时，实验分支也要在合并前验证
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
   # 允许在 Actions 页面手动触发一次

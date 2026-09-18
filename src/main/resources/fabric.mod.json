@@ -5,7 +5,11 @@
   "name": "ConfigSwitch",
   "description": "Synchronize your mod configs and options.txt between modpacks. Push your tuned settings to a global repository once, then fetch them into any other instance.",
   "authors": ["bahetimo"],
-  "contact": {},
+  "contact": {
+    "homepage": "https://github.com/bahetimo/ConfigSwitch",
+    "sources": "https://github.com/bahetimo/ConfigSwitch",
+    "issues": "https://github.com/bahetimo/ConfigSwitch/issues"
+  },
   "license": "MIT",
   "icon": "assets/configswitch/icon.png",
   "environment": "client",

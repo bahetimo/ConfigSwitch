@@ -1,5 +1,7 @@
 # ConfigSwitch
 
+[![Build](https://github.com/bahetimo/ConfigSwitch/actions/workflows/build.yml/badge.svg)](https://github.com/bahetimo/ConfigSwitch/actions/workflows/build.yml)
+
 Synchronize your mod configs and `options.txt` between modpacks. Push your tuned
 settings to a global repository once, then fetch them into any other instance —
 **your configs follow you, not the pack.**
