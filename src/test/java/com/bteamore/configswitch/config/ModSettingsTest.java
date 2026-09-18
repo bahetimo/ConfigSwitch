@@ -3,6 +3,8 @@ package com.bteamore.configswitch.config;
 import com.bteamore.configswitch.repo.RepoPaths;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -164,7 +166,9 @@ public class ModSettingsTest {
     }
 
     // 最近的已存在目录不可写 → 单独提示，而不是放过校验
+    // 平台依赖：Windows 的可写判定走 ACL，Linux 没有 AclFileAttributeView
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     void testValidateRejectsUnwritableDir() throws IOException {
         Path locked = tempDir.resolve("locked-repo");
         Files.createDirectories(locked);
@@ -191,7 +195,10 @@ public class ModSettingsTest {
     }
 
     // 落点被同名普通文件占位 / 上级是普通文件 → 各自给出提示，不抛异常
+    // 平台依赖：路径中间有文件时，Windows 抛 NoSuchFileException、Linux 抛 NotDirectoryException，
+    // validateRepoRoot 只捕获前者，故在 Linux 上会给出不同的提示
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     void testValidateRejectsPathOccupiedByFile() throws IOException {
         Path file = tempDir.resolve("not-a-dir");
         Files.writeString(file, "not a directory");
@@ -201,7 +208,9 @@ public class ModSettingsTest {
     }
 
     // 语法异常（Windows 下 * 等、以及 NUL）→ 单独一类提示，而不是抛 InvalidPathException
+    // 平台依赖：`*` 在 Linux 上是合法文件名字符
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     void testValidateRejectsIllegalPathCharacters() {
         // 字符串必须拼出来：tempDir.resolve("in*valid") 自己就会在解析阶段抛 InvalidPathException
         List<String> illegalPaths = List.of(tempDir + "\\in*valid", tempDir + "\\nul\u0000char");

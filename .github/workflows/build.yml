@@ -14,7 +14,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 用 Windows runner：本项目 v1 只支持 Windows，且部分测试依赖 Windows 专有行为
+    # （ACL 可写判定、非法路径字符、异常类型），在 Linux 上会失败。
+    # 这样 CI 的环境与目标平台一致，所有测试都真跑，而不是被跳过。
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
