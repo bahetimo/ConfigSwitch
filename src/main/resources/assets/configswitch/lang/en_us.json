@@ -36,7 +36,7 @@
   "configswitch.confirm.discard.yes": "Discard",
   "configswitch.confirm.discard.no": "Cancel",
   "configswitch.confirm.reset.title": "Reset settings?",
-  "configswitch.confirm.reset.text": "This resets to defaults and saves immediately. Continue?",
+  "configswitch.confirm.reset.text": "This resets to defaults. Continue?",
   "configswitch.confirm.reset.yes": "Reset",
 
   "configswitch.message.push.head": "Push complete: %d mods",
@@ -50,7 +50,7 @@
   "configswitch.message.state": "State: %s",
   "configswitch.message.save_failed": "Save failed",
   "configswitch.message.saved": "Saved — takes effect after a game restart",
-  "configswitch.message.reset_done": "Reset — takes effect after a game restart",
+  "configswitch.message.reset_done": "Reset to defaults — click Save to apply",
   "configswitch.message.reset_failed": "Reset failed",
 
   "configswitch.error.path_blank": "Path cannot be empty",

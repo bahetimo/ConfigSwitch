@@ -105,16 +105,10 @@ public class SettingsScreen extends Screen {
 
     private void onReset() {
         ModSettings target = ModSettings.DEFAULT;
-        if (ModConfig.store().save(target)) {
-            this.onDisk = target;
-            this.repoField.setText(target.repoRoot());
-            this.countControl.setValue(target.maxBackupCount());
-            this.messageIsError = false;
-            this.message = Text.translatable("configswitch.message.reset_done");
-        } else {
-            this.messageIsError = true;
-            this.message = Text.translatable("configswitch.message.reset_failed");
-        }
+        this.repoField.setText(target.repoRoot());
+        this.countControl.setValue(target.maxBackupCount());
+        this.messageIsError = false;
+        this.message = Text.translatable("configswitch.message.reset_done");
     }
 
     private void onBack() {

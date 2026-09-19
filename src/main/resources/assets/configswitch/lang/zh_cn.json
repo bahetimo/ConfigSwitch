@@ -36,7 +36,7 @@
   "configswitch.confirm.discard.yes": "放弃",
   "configswitch.confirm.discard.no": "取消",
   "configswitch.confirm.reset.title": "重置配置？",
-  "configswitch.confirm.reset.text": "将恢复为默认配置并立即保存，确定吗？",
+  "configswitch.confirm.reset.text": "将恢复为默认配置，确定吗？",
   "configswitch.confirm.reset.yes": "重置",
 
   "configswitch.message.push.head": "Push 完成：%d 个模组",
@@ -50,7 +50,7 @@
   "configswitch.message.state": "当前状态：%s",
   "configswitch.message.save_failed": "保存失败",
   "configswitch.message.saved": "保存成功，重启游戏后生效",
-  "configswitch.message.reset_done": "重置成功，重启游戏后生效",
+  "configswitch.message.reset_done": "已重置为默认值，点保存后生效",
   "configswitch.message.reset_failed": "重置失败",
 
   "configswitch.error.path_blank": "路径不能为空",
