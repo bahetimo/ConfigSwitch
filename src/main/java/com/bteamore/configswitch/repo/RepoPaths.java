@@ -24,10 +24,6 @@ public final class RepoPaths {
         return repoRoot().resolve("backup");
     }
 
-    public static Path defaultConfigPath() {
-        return root().resolve("configswitch-config.json");
-    }
-
     public static Path localBackupDir(Path gameDir) {
         return gameDir.resolve("config").resolve("switch").resolve("backup");
     }

@@ -2,13 +2,10 @@ package com.bteamore.configswitch.client;
 
 import com.bteamore.configswitch.discovery.ConfigClassifier;
 import com.bteamore.configswitch.discovery.ConfigScanner;
-import com.bteamore.configswitch.discovery.GlobalConfigScanner;
 import com.bteamore.configswitch.discovery.ModGroup;
-import com.bteamore.configswitch.repo.RepoPaths;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -21,7 +18,6 @@ public class ConfigDiscovery {
 
     private final ConfigScanner scanner = new ConfigScanner();
     private final ConfigClassifier classifier = new ConfigClassifier();
-    private final GlobalConfigScanner gScanner = new GlobalConfigScanner();
 
     public ConfigDiscovery(Path dir) {
         gameDir = dir;
@@ -30,22 +26,6 @@ public class ConfigDiscovery {
     }
 
     private Set<String> cachedModIds;
-
-    public List<ModGroup> discover(String name) {
-        return switch (name) {
-            case "fetch" -> discoverGlobal();
-            case "push" -> discoverLocal();
-            default -> new ArrayList<>();
-        };
-    }
-
-    private List<ModGroup> discoverGlobal() {
-        List<ModGroup> groups = gScanner.scan(RepoPaths.commonDir());
-
-        return groups.stream()
-                .filter(group -> (getModIds().contains(group.getModId())) || (group.getModId().equals(ModGroup.VANILLA_ID)))
-                .toList();
-    }
 
     public List<ModGroup> discoverLocal() {
         List<Path> configFiles = scanner.scan(configDir);

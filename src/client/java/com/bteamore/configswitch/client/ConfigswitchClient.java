@@ -30,9 +30,5 @@ public class ConfigswitchClient implements ClientModInitializer {
                 client.setScreen(new ConfigScreen());
             }
         });
-
-        // for (ModGroup group : new ConfigDiscovery().discover()) {
-        //     Configswitch.LOGGER.info("[discovery] {} -> {}",group.getModId(), group.getFiles());
-        // }
     }
 }
