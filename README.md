@@ -49,8 +49,23 @@ Two more screens:
 
 ## Reporting issues
 
-Please include your `logs/latest.log` — it shows what ConfigSwitch was doing when
-things went wrong.
+Please include your `logs/latest.log` — or just the lines containing
+`[ConfigSwitch]`. That prefix is how our entries can be told apart from the other
+mods', since `latest.log` has no per-mod names in it.
+
+If the problem is **"nothing happened"** — a config didn't change, a button did
+nothing, a sync had no effect — `latest.log` usually isn't enough. In that case:
+
+1. In your launcher's **advanced / JVM options** for this instance, add
+   `-Dconfigswitch.debug=true`
+2. Start the game and reproduce the problem **once**
+3. Quit the game
+4. Attach **`logs/configswitch-debug.log`** — it contains *only* ConfigSwitch's
+   own log, including detailed step-by-step entries
+5. Remove the argument again (it's a one-off; it does not persist)
+
+You don't need to do this for every report — only when the plain log doesn't show
+what happened.
 
 ## License
 
