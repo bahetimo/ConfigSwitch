@@ -1,7 +1,5 @@
 package com.bteamore.configswitch.util;
 
-import com.bteamore.configswitch.Configswitch;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,7 +10,7 @@ public class Hash {
         try {
             return Arrays.hashCode(Files.readAllBytes(active));
         } catch (IOException e) {
-            Configswitch.LOGGER.error("Failed to hash {}: {}", active, e.getMessage());
+            Log.error("Failed to hash {}", active, e);
             return 0;
         }
     }

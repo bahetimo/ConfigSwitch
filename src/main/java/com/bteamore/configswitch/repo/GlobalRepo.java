@@ -1,6 +1,6 @@
 package com.bteamore.configswitch.repo;
 
-import com.bteamore.configswitch.Configswitch;
+import com.bteamore.configswitch.util.Log;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,7 +12,7 @@ public class GlobalRepo {
                 Files.createDirectories(RepoPaths.commonDir());
             }
         } catch (IOException e) {
-            Configswitch.LOGGER.error("全局配置创建失败");
+            Log.error("Global config initialization failed", e);
         }
     }
 }

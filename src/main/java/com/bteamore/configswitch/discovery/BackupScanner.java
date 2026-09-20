@@ -1,6 +1,6 @@
 package com.bteamore.configswitch.discovery;
 
-import com.bteamore.configswitch.Configswitch;
+import com.bteamore.configswitch.util.Log;
 import com.bteamore.configswitch.util.Time;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public class BackupScanner {
                     .sorted(Comparator.comparing(BackupSnapshot::timeStamp).reversed())
                     .forEach(result::add);
         } catch (IOException e) {
-            Configswitch.LOGGER.error("扫描 backup 目录失败 {}: {}", backupRoot, e.getMessage());
+            Log.error("Failed to scan backup directory {}", backupRoot, e);
         }
         return result;
     }
@@ -37,7 +37,7 @@ public class BackupScanner {
                     .toList();
             return new BackupSnapshot(snapshotRoot.getFileName().toString(), list);
         } catch (IOException e) {
-            Configswitch.LOGGER.error("扫描备份快照失败 {}: {}", snapshotRoot, e.getMessage());
+            Log.error("Failed to scan snapshot {}", snapshotRoot, e);
             return null;
         }
     }

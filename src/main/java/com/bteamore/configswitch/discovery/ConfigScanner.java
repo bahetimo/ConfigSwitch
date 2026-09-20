@@ -1,6 +1,6 @@
 package com.bteamore.configswitch.discovery;
 
-import com.bteamore.configswitch.Configswitch;
+import com.bteamore.configswitch.util.Log;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -36,7 +36,7 @@ public class ConfigScanner {
                     .filter(this::isCandidate)
                     .forEach(result::add);
         } catch (IOException e) {
-            Configswitch.LOGGER.error("扫描 config 目录失败 {}: {}", configDir, e.getMessage());
+            Log.error("Failed to scan config directory {}", configDir, e);
         }
         return result;
     }

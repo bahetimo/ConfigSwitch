@@ -1,6 +1,5 @@
 package com.bteamore.configswitch.manager;
 
-import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.IConfigFileService;
 import com.bteamore.configswitch.core.SyncReport;
@@ -8,13 +7,13 @@ import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.util.Hash;
+import com.bteamore.configswitch.util.Log;
 import com.bteamore.configswitch.util.Time;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,9 +38,11 @@ public class ConfigHandler implements IConfigFileService {
 
         for (ConfigPaths target : paths) {
             if (target == null) {
-                Configswitch.LOGGER.error("Push failed - no config target registered");
+                Log.error("Push failed - no config target registered");
                 continue;
             }
+            Log.debug("Pushing {} -> {}", target.active(), target.global());
+
             // 一致性规则:推送前先备份即将被覆盖的全局配置
             boolean backupOk = true;
             if (Files.exists(target.global())) {
@@ -62,7 +63,10 @@ public class ConfigHandler implements IConfigFileService {
         if (backupRoot != null) {
             prune(backupRoot);
         }
-        return new SyncReport(results);
+
+        SyncReport report = new SyncReport(results);
+        Log.info("Push finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));
+        return report;
     }
 
     @Override
@@ -72,9 +76,11 @@ public class ConfigHandler implements IConfigFileService {
 
         for (ConfigPaths target : paths) {
             if (target == null) {
-                Configswitch.LOGGER.error("Fetch failed - no config target registered");
+                Log.error("Fetch failed - no config target registered");
                 continue;
             }
+            Log.debug("Fetching {} -> {}", target.global(), target.active());
+
             if (!Files.exists(target.global())) {
                 priorityMerge(results, target.modId(), SyncOutcome.SKIPPED);
                 continue;
@@ -102,7 +108,10 @@ public class ConfigHandler implements IConfigFileService {
         if (backupRoot != null) {
             prune(backupRoot);
         }
-        return new SyncReport(results);
+
+        SyncReport report = new SyncReport(results);
+        Log.info("Fetch finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));
+        return report;
     }
 
     @Override
@@ -113,11 +122,14 @@ public class ConfigHandler implements IConfigFileService {
 
         for (Path relative : snapshot.relativePaths()) {
             if (relative == null) {
-                Configswitch.LOGGER.error("Restore failed - no config path registered");
+                Log.error("Restore failed - no config path registered");
                 continue;
             }
+
             Path source = sourceRoot.resolve(relative);
             Path target = targetRoot.resolve(relative);
+
+            Log.debug("Restoring {} -> {}", source, target);
 
             boolean backupOk = true;
             if (Files.exists(target)) {
@@ -132,7 +144,10 @@ public class ConfigHandler implements IConfigFileService {
             }
         }
         prune(backupRoot);
-        return new SyncReport(results);
+
+        SyncReport report = new SyncReport(results);
+        Log.info("Restore finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));
+        return report;
     }
 
     private void priorityMerge(Map<String, SyncOutcome> result, String modId, SyncOutcome outcome) {
@@ -149,7 +164,7 @@ public class ConfigHandler implements IConfigFileService {
                 this.deleteRecursively(backups.get(i));
             }
         } catch (IOException e) {
-            Configswitch.LOGGER.warn("Failed to prune backups in {}: {}", backupDir, e.getMessage());
+            Log.warn("Failed to prune backups in {}", backupDir, e);
         }
     }
 
@@ -159,18 +174,18 @@ public class ConfigHandler implements IConfigFileService {
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException e) {
-                    Configswitch.LOGGER.warn("Failed to delete {}: {}", p, e.getMessage());
+                    Log.warn("Failed to delete {}", p, e);
                 }
             });
         } catch (IOException e) {
-            Configswitch.LOGGER.warn("Failed to walk {}: {}", path, e.getMessage());
+            Log.warn("Failed to walk {}", path, e);
         }
     }
 
     private boolean copy(Path from, Path to) {
         Path parent = to.getParent();
         if (parent == null) {
-            Configswitch.LOGGER.error("Failed to copy {} -> {}: {}", from, to, "Parent directory is null");
+            Log.error("Failed to copy {} -> {}: {}", from, to, "invalid parent directory");
             return false;
         }
         try {
@@ -183,7 +198,7 @@ public class ConfigHandler implements IConfigFileService {
             Files.copy(from, temp, StandardCopyOption.REPLACE_EXISTING);
             Files.move(temp, to, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
-            Configswitch.LOGGER.error("Failed to copy {} -> {}: {}", from, to, e.getMessage());
+            Log.error("Failed to copy {} -> {}", from, to, e);
             return false;
         }
         return true;

@@ -1,6 +1,6 @@
 package com.bteamore.configswitch.config;
 
-import com.bteamore.configswitch.Configswitch;
+import com.bteamore.configswitch.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -26,7 +26,7 @@ public class SettingsStore {
             ModSettings loaded = GSON.fromJson(reader, ModSettings.class);
             return (loaded != null) ? loaded : ModSettings.DEFAULT;
         } catch (IOException | JsonParseException e) {
-            Configswitch.LOGGER.warn("Failed to load settings: {}", e.getMessage());
+            Log.error("Failed to load settings from {}", configPath, e);
             return ModSettings.DEFAULT;
         }
     }
@@ -38,7 +38,7 @@ public class SettingsStore {
                 GSON.toJson(settings, writer);
             }
         } catch (IOException e) {
-            Configswitch.LOGGER.warn("Failed to save settings: {}", e.getMessage());
+            Log.error("Failed to save settings to {}", configPath, e);
             return false;
         }
         return true;

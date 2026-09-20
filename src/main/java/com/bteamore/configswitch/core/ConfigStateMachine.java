@@ -1,9 +1,9 @@
 package com.bteamore.configswitch.core;
 
-import com.bteamore.configswitch.Configswitch;
 import com.bteamore.configswitch.core.actions.FetchAction;
 import com.bteamore.configswitch.core.actions.PushAction;
 import com.bteamore.configswitch.core.actions.RestoreAction;
+import com.bteamore.configswitch.util.Log;
 
 import java.util.EnumMap;
 
@@ -26,24 +26,15 @@ public class ConfigStateMachine {
     private void init(){
         // push
         register(ConfigState.IDLE,ConfigEvent.PUSH,ConfigState.PUSHING,new PushAction());
-        register(ConfigState.FETCHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
-            Configswitch.LOGGER.info("StateMachine - Complete");
-            return null;
-        });
+        register(ConfigState.FETCHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> null);
 
         // fetch
         register(ConfigState.IDLE,ConfigEvent.FETCH,ConfigState.FETCHING,new FetchAction());
-        register(ConfigState.PUSHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
-            Configswitch.LOGGER.info("StateMachine - Complete");
-            return null;
-        });
+        register(ConfigState.PUSHING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> null);
 
         // restore
         register(ConfigState.IDLE,ConfigEvent.RESTORE,ConfigState.RESTORING,new RestoreAction());
-        register(ConfigState.RESTORING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> {
-            Configswitch.LOGGER.info("StateMachine - Complete");
-            return null;
-        });
+        register(ConfigState.RESTORING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> null);
 
     }
 
@@ -55,19 +46,21 @@ public class ConfigStateMachine {
     public void handleEvent(ConfigEvent event, Object context) {
         var inner = transition.get(this.currentState);
         if (inner == null){
-            Configswitch.LOGGER.warn("StateMachine - No transition defined for state: {}", this.currentState);
+            Log.error("StateMachine - No transition defined for state: {}", this.currentState);
             return;
         }
         var trans = inner.get(event);
         if (trans ==null){
-            Configswitch.LOGGER.warn("StateMachine - No transition defined for event: {} in state: {}", event, this.currentState);
+            Log.warn("StateMachine - No transition defined for event: {} in state: {}", event, this.currentState);
             return;
         }
         var action = trans.action;
         if (action == null){
-            Configswitch.LOGGER.warn("StateMachine - No action defined for transition: {} to {} on event: {}", this.currentState, trans.toState, event);
+            Log.error("StateMachine - No action defined for transition: {} to {} on event: {}", this.currentState, trans.toState, event);
             return;
         }
+
+        Log.debug("state: {} -- {} --> {}", this.currentState, event, trans.toState);
 
         ConfigEvent afterEvent = action.execute(this.currentState, trans.toState, event, context);
         this.currentState = trans.toState;

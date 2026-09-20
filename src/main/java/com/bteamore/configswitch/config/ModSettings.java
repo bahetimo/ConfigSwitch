@@ -1,6 +1,6 @@
 package com.bteamore.configswitch.config;
 
-import com.bteamore.configswitch.Configswitch;
+import com.bteamore.configswitch.util.Log;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,7 +52,7 @@ public record ModSettings(String repoRoot, int maxBackupCount) {
                 // 这一级还没建过：继续向上找最近的已存在目录，不创建任何东西
                 ancestor = ancestor.getParent();
             } catch (IOException e) {
-                Configswitch.LOGGER.error("路径不可访问: {}", e.getMessage());
+                Log.debug("Path is inaccessible", e);
                 return "configswitch.error.path_inaccessible";
             }
         }

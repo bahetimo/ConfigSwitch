@@ -3,21 +3,26 @@ package com.bteamore.configswitch;
 import com.bteamore.configswitch.config.ModConfig;
 import com.bteamore.configswitch.manager.PendingRewrites;
 import com.bteamore.configswitch.repo.GlobalRepo;
+import com.bteamore.configswitch.util.Log;
 import net.fabricmc.api.ModInitializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.fabricmc.loader.api.FabricLoader;
 
 
 public class Configswitch implements ModInitializer {
-    public static final String MOD_ID = "configswitch";
-    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     @Override
     public void onInitialize() {
+        Log.init(FabricLoader.getInstance().getGameDir().resolve("logs"));
         ModConfig.load();
         GlobalRepo.init();
-        LOGGER.info("ConfigSwitch loaded!");
+        Log.info("ConfigSwitch {} loaded (Minecraft {}, Fabric Loader {})", versionOf("configswitch"), versionOf("minecraft"), versionOf("fabricloader"));
 
         Runtime.getRuntime().addShutdownHook(new Thread(PendingRewrites::flush, "configswitch-shutdown"));
+    }
+
+    private static String versionOf(String id) {
+        return FabricLoader.getInstance().getModContainer(id)
+                .map(c -> c.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown");
     }
 }

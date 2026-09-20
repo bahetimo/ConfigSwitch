@@ -3,6 +3,7 @@ package com.bteamore.configswitch.client;
 import com.bteamore.configswitch.discovery.ConfigClassifier;
 import com.bteamore.configswitch.discovery.ConfigScanner;
 import com.bteamore.configswitch.discovery.ModGroup;
+import com.bteamore.configswitch.util.Log;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
@@ -31,6 +32,8 @@ public class ConfigDiscovery {
         List<Path> configFiles = scanner.scan(configDir);
 
         List<ModGroup> classified = classifier.classify(optionsFile, configFiles, getModIds());
+        Log.debug("discovered {} files -> {} groups({} files uncategorized)", configFiles.size(), classified.size(), classified.stream().filter(g -> g.getModId().equals(ModGroup.UNCATEGORIZED_ID)).map(ModGroup::getFiles).mapToLong(List::size).sum());
+
         // 原版置顶 → 其余按 modId 字母序
         return classified.stream()
                 .sorted(Comparator.comparing((ModGroup g) -> !g.getModId().equals(ModGroup.VANILLA_ID))
