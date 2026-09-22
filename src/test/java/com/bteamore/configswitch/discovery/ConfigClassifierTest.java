@@ -228,9 +228,9 @@ public class ConfigClassifierTest {
         assertEquals("sodium", groups.get(0).getModId());
     }
 
-    // 点号不作为剥离分隔符：foo.bar.cfg 不匹配 modid foo
+    // 点号同为剥离分隔符：foo.bar.cfg 剥掉中间段 bar 后匹配 modid foo
     @Test
-    void testDotIsNotStrippedAsSeparator() {
+    void testDotSuffixStrippedToMatchModId() {
         ConfigClassifier classifier = new ConfigClassifier();
 
         List<ModGroup> groups = classifier.classify(
@@ -240,7 +240,56 @@ public class ConfigClassifierTest {
         );
 
         assertEquals(1, groups.size());
+        assertEquals("foo", groups.get(0).getModId());
+    }
+
+    // 双扩展名：剥掉 .properties 后剩下 ferritecore.mixin，点号段继续剥离后命中
+    @Test
+    void testDoubleExtensionStrippedToMatchModId() {
+        ConfigClassifier classifier = new ConfigClassifier();
+
+        List<ModGroup> groups = classifier.classify(
+                null,
+                List.of(Path.of("config/ferritecore.mixin.properties")),
+                Set.of("ferritecore")
+        );
+
+        assertEquals(1, groups.size());
+        assertEquals("ferritecore", groups.get(0).getModId());
+    }
+
+    // 双扩展名带配置段：worldeditcui.config.json 命中 worldeditcui
+    @Test
+    void testDoubleExtensionWithConfigInfixMatchesModId() {
+        ConfigClassifier classifier = new ConfigClassifier();
+
+        List<ModGroup> groups = classifier.classify(
+                null,
+                List.of(Path.of("config/worldeditcui.config.json")),
+                Set.of("worldeditcui")
+        );
+
+        assertEquals(1, groups.size());
+        assertEquals("worldeditcui", groups.get(0).getModId());
+    }
+
+    // 负例：只有剩下的前缀段参与匹配，中间段 mod 与尾段 mixin 都不命中
+    @Test
+    void testInnerSegmentDoesNotMatchModId() {
+        ConfigClassifier classifier = new ConfigClassifier();
+
+        List<ModGroup> groups = classifier.classify(
+                null,
+                List.of(
+                        Path.of("config/nota.mod.json"),
+                        Path.of("config/ferritecore.mixin.properties")
+                ),
+                Set.of("mod", "mixin")
+        );
+
+        assertEquals(1, groups.size());
         assertEquals(ModGroup.UNCATEGORIZED_ID, groups.get(0).getModId());
+        assertEquals(2, groups.get(0).getFiles().size());
     }
 
     // 多个文件混合分组：带后缀、精确匹配与长 modid 优先同时生效

@@ -34,9 +34,10 @@ public class ConfigDiscovery {
         List<ModGroup> classified = classifier.classify(optionsFile, configFiles, getModIds());
         Log.debug("discovered {} files -> {} groups({} files uncategorized)", configFiles.size(), classified.size(), classified.stream().filter(g -> g.getModId().equals(ModGroup.UNCATEGORIZED_ID)).map(ModGroup::getFiles).mapToLong(List::size).sum());
 
-        // 原版置顶 → 其余按 modId 字母序
+        // 原版置顶，未分类置底，其余按 modId 字母序
         return classified.stream()
                 .sorted(Comparator.comparing((ModGroup g) -> !g.getModId().equals(ModGroup.VANILLA_ID))
+                        .thenComparing((ModGroup g) -> g.getModId().equals(ModGroup.UNCATEGORIZED_ID))
                         .thenComparing(ModGroup::getModId))
                 .collect(Collectors.toList());
     }

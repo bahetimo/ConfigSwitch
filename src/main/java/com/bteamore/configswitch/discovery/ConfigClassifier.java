@@ -63,7 +63,7 @@ public class ConfigClassifier {
                 return true;
             }
 
-            int dot = Math.max(current.lastIndexOf("-"), current.lastIndexOf("_"));
+            int dot = Math.max(Math.max(current.lastIndexOf("-"), current.lastIndexOf("_")), current.lastIndexOf("."));
             if (dot < 0) {
                 return false;
             }
