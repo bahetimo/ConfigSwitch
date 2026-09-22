@@ -59,5 +59,8 @@
   "configswitch.error.path_is_file": "A file already exists at that path",
   "configswitch.error.parent_not_dir": "Parent path is not a folder",
   "configswitch.error.path_unwritable": "Path is not writable",
-  "configswitch.error.path_inaccessible": "Path is not accessible"
+  "configswitch.error.path_inaccessible": "Path is not accessible",
+
+  "configswitch.group.uncategorized": "Uncategorized",
+  "configswitch.group.vanilla": "Vanilla"
 }

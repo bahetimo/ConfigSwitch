@@ -1,5 +1,6 @@
 package com.bteamore.configswitch.client.gui.widget.entries;
 
+import com.bteamore.configswitch.discovery.ModGroup;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -10,6 +11,7 @@ import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.text.Text;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
@@ -21,6 +23,7 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
     private static final int FILE_TOP = 24;
     private static final int LINE_HEIGHT = 11;
     private static final int MOD_ID_COLOR = 0xFFFFFF;
+    private static final int MOD_ID_COLOR_UNCATEGORIZED = 0xA0A0A0;
     private static final int FILE_COLOR = 0xA0A0A0;
     private static final int TEXT_PADDING_RIGHT = 8;
     // 文件名区最多显示的行数（统一行高 46px 内只能放得下 2 行）
@@ -48,7 +51,18 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
         this.checkbox.setPosition(x + CHECKBOX_X, y + CHECKBOX_Y);
         this.checkbox.render(context, mouseX, mouseY, tickDelta);
         // modId
-        context.drawTextWithShadow(textRenderer, trimWithEllipsis(textRenderer, this.modId, entryWidth - MOD_ID_INDENT - TEXT_PADDING_RIGHT), x + MOD_ID_INDENT, y + MOD_ID_Y, MOD_ID_COLOR);
+        String text = switch (this.modId){
+            case ModGroup.UNCATEGORIZED_ID -> Text.translatable("configswitch.group.uncategorized").getString();
+            case ModGroup.VANILLA_ID -> Text.translatable("configswitch.group.vanilla").getString();
+            default -> this.modId;
+        };
+        int modIdColor = Objects.equals(this.modId, ModGroup.UNCATEGORIZED_ID) ? MOD_ID_COLOR_UNCATEGORIZED : MOD_ID_COLOR;
+        context.drawTextWithShadow(textRenderer,
+                trimWithEllipsis(textRenderer, text, entryWidth - MOD_ID_INDENT - TEXT_PADDING_RIGHT),
+                x + MOD_ID_INDENT,
+                y + MOD_ID_Y,
+                modIdColor);
+
         // 文件名最多显示 FILE_LINES_MAX 行（受统一行高限制），超出时改为"首个文件名 + 剩余数量提示"
         int fileY = y + FILE_TOP;
         int fileMaxWidth = entryWidth - FILE_INDENT - TEXT_PADDING_RIGHT;

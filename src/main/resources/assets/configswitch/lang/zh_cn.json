@@ -59,5 +59,8 @@
   "configswitch.error.path_is_file": "该路径已存在同名文件",
   "configswitch.error.parent_not_dir": "上级路径不是文件夹",
   "configswitch.error.path_unwritable": "路径不可写",
-  "configswitch.error.path_inaccessible": "路径不可访问"
+  "configswitch.error.path_inaccessible": "路径不可访问",
+
+  "configswitch.group.uncategorized": "未分类",
+  "configswitch.group.vanilla": "原版"
 }
