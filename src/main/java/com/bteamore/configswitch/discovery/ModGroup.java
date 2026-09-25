@@ -11,6 +11,7 @@ import java.util.List;
 public class ModGroup {
     public static final String VANILLA_ID = "minecraft";
     public static final String UNCATEGORIZED_ID = "uncategorized";
+    public static final String RESIDUE_ID = "residue";
 
     private final String modId;
     private final List<Path> files = new ArrayList<>();

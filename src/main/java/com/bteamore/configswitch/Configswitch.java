@@ -16,6 +16,7 @@ public class Configswitch implements ModInitializer {
         ModConfig.load();
         GlobalRepo.init();
         Log.info("ConfigSwitch {} loaded (Minecraft {}, Fabric Loader {})", versionOf("configswitch"), versionOf("minecraft"), versionOf("fabricloader"));
+        Log.debug("modIds: {}", FabricLoader.getInstance().getAllMods().stream().map(m -> m.getMetadata().getId()).toList());
 
         Runtime.getRuntime().addShutdownHook(new Thread(PendingRewrites::flush, "configswitch-shutdown"));
     }

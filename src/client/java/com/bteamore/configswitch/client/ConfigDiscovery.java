@@ -1,8 +1,7 @@
 package com.bteamore.configswitch.client;
 
-import com.bteamore.configswitch.discovery.ConfigClassifier;
-import com.bteamore.configswitch.discovery.ConfigScanner;
-import com.bteamore.configswitch.discovery.ModGroup;
+import com.bteamore.configswitch.discovery.*;
+import com.bteamore.configswitch.repo.RepoPaths;
 import com.bteamore.configswitch.util.Log;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -18,7 +17,7 @@ public class ConfigDiscovery {
     private final Path optionsFile;
 
     private final ConfigScanner scanner = new ConfigScanner();
-    private final ConfigClassifier classifier = new ConfigClassifier();
+    private ConfigClassifier classifier;
 
     public ConfigDiscovery(Path dir) {
         gameDir = dir;
@@ -31,8 +30,11 @@ public class ConfigDiscovery {
     public List<ModGroup> discoverLocal() {
         List<Path> configFiles = scanner.scan(configDir);
 
-        List<ModGroup> classified = classifier.classify(optionsFile, configFiles, getModIds());
+        List<ModGroup> classified = classifier().classify(optionsFile, configFiles);
         Log.debug("discovered {} files -> {} groups({} files uncategorized)", configFiles.size(), classified.size(), classified.stream().filter(g -> g.getModId().equals(ModGroup.UNCATEGORIZED_ID)).map(ModGroup::getFiles).mapToLong(List::size).sum());
+        for (ModGroup g : classified) {
+            Log.debug("{}={}", g.getModId(), g.getFiles().stream().map(Path::getFileName).toList());
+        }
 
         // 原版置顶，未分类置底，其余按 modId 字母序
         return classified.stream()
@@ -40,6 +42,13 @@ public class ConfigDiscovery {
                         .thenComparing((ModGroup g) -> g.getModId().equals(ModGroup.UNCATEGORIZED_ID))
                         .thenComparing(ModGroup::getModId))
                 .collect(Collectors.toList());
+    }
+
+    private ConfigClassifier classifier() {
+        if (classifier == null) {
+            classifier = new ConfigClassifier(getModIds(), MappingTable.loadBundled(), new RepoModScanner().scan(RepoPaths.commonDir()));
+        }
+        return classifier;
     }
 
     public Set<String> getModIds() {
