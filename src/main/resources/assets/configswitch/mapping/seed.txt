@@ -1,0 +1,88 @@
+# ConfigSwitch
+# 内置映射种子
+#
+# 自映射段：列出「常见 mod 的 modid」-> 其配置文件若出现而该 mod 未安装，即判定为残留并隐藏
+# 别名段：L2 文件名启发式匹配不到的 stem → 真实 modid
+#
+# 为什么 RHS 必须是真实 modid：管线里「目标已安装 -> 归组」这条分支，
+#   保证了用户后来装上该 mod 时文件【自动归位】。写错 modid 会破坏这个自愈性。
+#
+# 条目来源与置信度：
+#   [A] disabled jar 实证 —— 读 jar 内 fabric.mod.json 的 id 得来，最高置信
+#   [I] 文件名推断   —— 从真实残留文件名剥离结构性尾段得来
+#   [V] 内容验证     —— 别名条目，打开过文件确认归属
+
+# 自映射（残留字典）
+advancementplaques             # [I] advancementplaques-common.toml
+armorchroma                    # [I] armorchroma.json
+authme                         # [I] authme.json5
+auto_third_person              # [I] auto_third_person.cfg
+autofish                       # [A] autofish.config
+beautifiedchatclient           # [I] beautifiedchatclient-fabric.json
+betterpingdisplay              # [I] betterpingdisplay.json
+borderlessmining               # [I] borderlessmining.json
+cardinal-components-api        # [I] cardinal-components-api.properties
+cem                            # [I] cem.conf
+citresewn                      # [I] citresewn-defaults.json, citresewn.json
+collective                     # [I] collective-fabric.json
+colormatic                     # [I] colormatic.properties
+controlify                     # [I] controlify.json
+crowdin                        # [I] crowdin.txt
+cull-less-leaves               # [I] cull-less-leaves.json, cull-less-leaves.toml
+cullleaves                     # [I] cullleaves.json
+debugify                       # [I] debugify-descriptions.json, debugify.json
+draggable-resource-packs       # [I] draggable-resource-packs.json5
+durability-viewer              # [I] durability-viewer.json
+durabilitytooltip              # [I] durabilitytooltip-common.toml
+durabilityviewer               # [I] durabilityviewer.json
+dynamiccrosshair               # [A] dynamiccrosshair.json5
+dynamicfps                     # [I] dynamicfps.toml
+easiervillagertrading          # [I] easiervillagertrading.json
+enchdesc                       # [I] enchdesc.json
+enhanced_attack_indicator      # [I] enhanced_attack_indicator.json
+equipmentcompare               # [I] equipmentcompare-common.toml
+exordium                       # [A] exordium.json
+farsight                       # [I] farsight.json
+fastload                       # [I] fastload.properties
+firstperson                    # [I] firstperson.json
+flytre_lib                     # [I] flytre_lib.json5
+fpsdisplay                     # [I] fpsdisplay.json
+fpsreducer                     # [I] fpsreducer.json
+fullscreenfix                  # [I] fullscreenfix.properties
+gamma_utils                    # [I] gamma_utils.json5
+guifollowers                   # [I] guifollowers-fabric.json
+held-item-info                 # [I] held-item-info.json
+ias                            # [I] ias.json
+imblocker                      # [I] imblocker.json
+indium                         # [I] indium-renderer.properties
+inventoryhud                   # [I] inventoryhud.json
+itemmodelfix                   # [I] itemmodelfix.json
+lambdabettergrass              # [I] lambdabettergrass.toml
+lambdynlights                  # [I] lambdynlights.toml
+languagereload                 # [I] languagereload.json
+memoryusagescreen              # [I] memoryusagescreen.toml
+midnightcontrols               # [I] midnightcontrols.json
+modelfix                       # [I] modelfix-client.json
+mods-command                   # [I] mods-command.conf
+mousetweaks                    # [I] MouseTweaks.cfg
+nochatreports                  # [I] NoChatReports.json
+noindium                       # [I] noindium.json
+notenoughanimations            # [A] notenoughanimations.json
+ommc                           # [I] ommc.json
+orderly                        # [I] orderly.json
+paginatedadvancements          # [I] PaginatedAdvancements.json5
+pvpsettings                    # [I] pvpsettings.txt
+rrp                            # [I] rrp.properties
+skinlayers                     # [I] skinlayers.json
+smoothswapping                 # [I] smoothswapping.json
+tr7zwdonorsettings             # [I] tr7zwDonorSettings.json
+tweakermore                    # [I] tweakermore.json
+tweakmyclient                  # [I] tweakmyclient.json
+voxelmap                       # [I] voxelmap.properties
+xaeropatreon                   # [I] xaeropatreon.txt
+zoomify                        # [I] zoomify.json
+
+# 别名（L2 匹配不到 -> 真实 modid）
+yacl = yet_another_config_lib_v3            # [V] yacl.json5（内容 {"showColorPickerIndicator": ...}）
+etf = entity_texture_features               # [V] etf_warnings.json（内容 {"ignoredConfigIds": []}）
+enhanced_bes = enhancedblockentities        # [V] enhanced_bes.properties（文件头自述 Enhanced Block Entities）
