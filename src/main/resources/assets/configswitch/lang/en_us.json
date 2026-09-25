@@ -12,6 +12,7 @@
   "configswitch.button.select_none": "Clear",
   "configswitch.button.invert": "Invert",
   "configswitch.search.placeholder": "Search…",
+  "configswitch.search.no_match": "No matches found",
   "configswitch.label.files_more": "… and %d more",
   "configswitch.label.list_sep": ", ",
   "configswitch.label.file_count": "%d files",

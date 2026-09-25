@@ -240,6 +240,9 @@ public class ConfigScreen extends Screen {
                 ? Text.translatable("configswitch.message.state", stateManager.getCurrentState().name())
                 : this.message;
         context.drawCenteredTextWithShadow(this.textRenderer, msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
+        if (this.visibleGroups().isEmpty()){
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.translatable("configswitch.search.no_match"), this.width / 2, this.listWidget.getY() + this.listWidget.getHeight() / 2, 0xA0A0A0);
+        }
     }
 
     private List<ModGroup> visibleGroups() {

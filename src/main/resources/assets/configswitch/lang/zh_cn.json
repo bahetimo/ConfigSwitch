@@ -12,6 +12,7 @@
   "configswitch.button.select_none": "全不选",
   "configswitch.button.invert": "反选",
   "configswitch.search.placeholder": "搜索…",
+  "configswitch.search.no_match": "没有找到匹配的文件",
   "configswitch.label.files_more": "… 还有 %d 个文件",
   "configswitch.label.list_sep": "、",
   "configswitch.label.file_count": "%d 个文件",
