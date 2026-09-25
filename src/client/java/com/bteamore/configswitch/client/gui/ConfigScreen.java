@@ -58,6 +58,7 @@ public class ConfigScreen extends Screen {
     private final Set<String> selectedModIds = new HashSet<>();
     private String searchText;
     private Text message;
+    private double scrollAmount;
 
     private final Path gameDir = MinecraftClient.getInstance().runDirectory.toPath();
 
@@ -101,6 +102,10 @@ public class ConfigScreen extends Screen {
         this.searchField.setPlaceholder(Text.translatable("configswitch.search.placeholder"));
         this.searchField.setText((this.searchText != null) ? this.searchText : "");
         this.searchField.setChangedListener(searchText -> {
+            boolean wasNotSearching = (this.searchText == null || this.searchText.isEmpty());
+            if (wasNotSearching && !searchText.isEmpty()){
+                this.scrollAmount = this.listWidget.getScrollAmount();
+            }
             this.searchText = searchText;
             this.refreshList();
         });
@@ -271,6 +276,14 @@ public class ConfigScreen extends Screen {
         this.listWidget.clearGroups();
         for (ModGroup group : visibleGroups()) {
             this.listWidget.addGroup(group.getModId(), group.getFiles().stream().map(Path::getFileName).map(Path::toString).toList(), this.selectedModIds.contains(group.getModId()), count, this::onToggle);
+        }
+
+        if (this.searchText != null){
+            if (this.searchText.isEmpty()) {
+                this.listWidget.setScrollAmount(this.scrollAmount);
+            } else {
+                this.listWidget.setScrollAmount(0.0);
+            }
         }
     }
 
