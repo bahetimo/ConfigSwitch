@@ -21,8 +21,12 @@ public class ModGroupsWidget extends ElementListWidget<ModGroupsEntry> {
 
     @Override
     public int getRowWidth() {
-        // 默认行宽 220 会居中显示，这里改为占满列表宽度（左右各留少量内边距）
-        return this.width - 20;
+        return this.width - (this.isScrollbarVisible() ? 38 : 32);
+    }
+
+    @Override
+    protected int getScrollbarX() {
+        return this.getRight() - 6;
     }
 
     public void clearGroups() {
