@@ -46,6 +46,7 @@ Two more screens:
 - Minecraft **1.21.1**
 - Fabric Loader **0.15.10** or newer
 - [Fabric API](https://modrinth.com/mod/fabric-api)
+- **Windows** (for now)
 
 ## Reporting issues
 
