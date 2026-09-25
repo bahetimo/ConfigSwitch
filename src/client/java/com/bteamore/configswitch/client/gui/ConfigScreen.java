@@ -54,6 +54,7 @@ public class ConfigScreen extends Screen {
     private ClickableWidget settingsButton;
 
     private List<ModGroup> allGroups;
+    private ModGroup residueGroup;
     private final Set<String> selectedModIds = new HashSet<>();
     private String searchText;
     private Text message;
@@ -71,7 +72,16 @@ public class ConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        this.allGroups = (allGroups == null) ? this.discovery.discoverLocal() : allGroups;
+        if (this.allGroups == null){
+            List<ModGroup> all = this.discovery.discoverLocal();
+            this.allGroups = all.stream()
+                    .filter(group -> !group.getModId().equals(ModGroup.RESIDUE_ID))
+                    .toList();
+            this.residueGroup = all.stream()
+                    .filter(group -> group.getModId().equals(ModGroup.RESIDUE_ID))
+                    .findFirst()
+                    .orElse(null);
+        }
         // 中部列表区域：左右留边距，占满标题与底部搜索行之间的空间
         // mod配置列表
         int listWidth = this.width - MARGIN_X * 2;
@@ -257,9 +267,10 @@ public class ConfigScreen extends Screen {
     }
 
     private void refreshList() {
+        int count = (residueGroup == null) ? 0 : residueGroup.getFiles().size();
         this.listWidget.clearGroups();
         for (ModGroup group : visibleGroups()) {
-            this.listWidget.addGroup(group.getModId(), group.getFiles().stream().map(Path::getFileName).map(Path::toString).toList(), this.selectedModIds.contains(group.getModId()), this::onToggle);
+            this.listWidget.addGroup(group.getModId(), group.getFiles().stream().map(Path::getFileName).map(Path::toString).toList(), this.selectedModIds.contains(group.getModId()), count, this::onToggle);
         }
     }
 

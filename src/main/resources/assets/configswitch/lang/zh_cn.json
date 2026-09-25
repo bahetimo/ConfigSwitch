@@ -62,5 +62,7 @@
   "configswitch.error.path_inaccessible": "路径不可访问",
 
   "configswitch.group.uncategorized": "未分类",
-  "configswitch.group.vanilla": "原版"
+  "configswitch.group.vanilla": "原版",
+
+  "configswitch.label.residue_hidden": "已隐藏 %d 个残留配置"
 }

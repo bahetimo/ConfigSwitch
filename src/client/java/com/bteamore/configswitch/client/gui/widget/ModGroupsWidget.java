@@ -15,8 +15,8 @@ public class ModGroupsWidget extends ElementListWidget<ModGroupsEntry> {
         this.centerListVertically = false;
     }
 
-    public void addGroup(String modId, List<String> fileNames, boolean selected, BiConsumer<String, Boolean> onToggle) {
-        this.addEntry(new ModGroupsEntry(modId, fileNames, selected, onToggle));
+    public void addGroup(String modId, List<String> fileNames, boolean selected, int residueCount, BiConsumer<String, Boolean> onToggle) {
+        this.addEntry(new ModGroupsEntry(modId, fileNames, selected, residueCount, onToggle));
     }
 
     @Override

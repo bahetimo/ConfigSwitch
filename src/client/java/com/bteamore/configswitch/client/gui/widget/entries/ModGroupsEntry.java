@@ -32,10 +32,12 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
     private final String modId;
     private final List<String> fileNames;
     private final CheckboxWidget checkbox;
+    private final int residueCount;
 
-    public ModGroupsEntry(String modId, List<String> fileNames, boolean selected, BiConsumer<String, Boolean> onToggle) {
+    public ModGroupsEntry(String modId, List<String> fileNames, boolean selected, int residueCount, BiConsumer<String, Boolean> onToggle) {
         this.modId = modId;
         this.fileNames = fileNames;
+        this.residueCount = residueCount;
 
         this.checkbox = CheckboxWidget.builder(Text.empty(), MinecraftClient.getInstance().textRenderer)
                 .pos(0, 0)
@@ -52,7 +54,12 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
         this.checkbox.render(context, mouseX, mouseY, tickDelta);
         // modId
         String text = switch (this.modId){
-            case ModGroup.UNCATEGORIZED_ID -> Text.translatable("configswitch.group.uncategorized").getString();
+            case ModGroup.UNCATEGORIZED_ID -> {
+                String base = Text.translatable("configswitch.group.uncategorized").getString();
+                yield (this.residueCount > 0)
+                        ? base + " - " + Text.translatable("configswitch.label.residue_hidden", this.residueCount).getString()
+                        : base;
+            }
             case ModGroup.VANILLA_ID -> Text.translatable("configswitch.group.vanilla").getString();
             default -> this.modId;
         };

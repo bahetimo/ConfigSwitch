@@ -62,5 +62,7 @@
   "configswitch.error.path_inaccessible": "Path is not accessible",
 
   "configswitch.group.uncategorized": "Uncategorized",
-  "configswitch.group.vanilla": "Vanilla"
+  "configswitch.group.vanilla": "Vanilla",
+
+  "configswitch.label.residue_hidden": "%d leftover configs hidden"
 }
