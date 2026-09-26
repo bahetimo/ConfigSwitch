@@ -278,7 +278,7 @@ public class ConfigScreen extends Screen {
         int count = (residueGroup == null) ? 0 : residueGroup.getFiles().size();
         this.listWidget.clearGroups();
         for (ModGroup group : visibleGroups()) {
-            this.listWidget.addGroup(group.getModId(), group.getFiles().stream().map(Path::getFileName).map(Path::toString).toList(), this.selectedModIds.contains(group.getModId()), count, this::onToggle);
+            this.listWidget.addGroup(group.getModId(), group.getFiles().stream().map(Path::getFileName).map(Path::toString).toList(), this.selectedModIds.contains(group.getModId()), count, this::onToggle,this::onClassify);
         }
 
         if (this.searchText != null){
@@ -290,11 +290,29 @@ public class ConfigScreen extends Screen {
         }
     }
 
+    private void onClassify() {
+        MinecraftClient.getInstance().setScreen(new CategorizeScreen(Text.translatable("configswitch.screen.categorize"), this, this.uncategorized(), this::onClassifyCommitted));
+    }
+
+    private void onClassifyCommitted() {
+        this.discovery.invalidate();
+        this.allGroups = null;
+        this.residueGroup = null;
+    }
+
     private void onToggle(String modId, boolean checked) {
         if (checked) {
             this.selectedModIds.add(modId);
         } else {
             this.selectedModIds.remove(modId);
         }
+    }
+
+    private List<String> uncategorized() {
+        return this.allGroups.stream()
+                .filter(group -> group.getModId().equals(ModGroup.UNCATEGORIZED_ID))
+                .flatMap(group -> group.getFiles().stream()
+                        .map(path -> path.getFileName().toString()))
+                .toList();
     }
 }

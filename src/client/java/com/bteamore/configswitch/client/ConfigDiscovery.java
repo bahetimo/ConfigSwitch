@@ -46,9 +46,13 @@ public class ConfigDiscovery {
 
     private ConfigClassifier classifier() {
         if (classifier == null) {
-            classifier = new ConfigClassifier(getModIds(), MappingTable.loadBundled(), new RepoModScanner().scan(RepoPaths.commonDir()));
+            classifier = new ConfigClassifier(getModIds(), MappingConfig.mapping(), new RepoModScanner().scan(RepoPaths.commonDir()));
         }
         return classifier;
+    }
+
+    public void invalidate(){
+        this.classifier = null;
     }
 
     public Set<String> getModIds() {

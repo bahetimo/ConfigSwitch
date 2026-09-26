@@ -6,6 +6,7 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.CheckboxWidget;
 import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.text.Text;
@@ -17,6 +18,8 @@ import java.util.function.BiConsumer;
 public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
     private static final int CHECKBOX_X = 6;
     private static final int CHECKBOX_Y = 4;
+    private static final int CLASSIFY_BUTTON_WIDTH = 50;
+    private static final int CLASSIFY_BUTTON_HEIGHT = 20;
     private static final int MOD_ID_INDENT = 34;
     private static final int FILE_INDENT = 44;
     private static final int MOD_ID_Y = 8;
@@ -33,11 +36,20 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
     private final List<String> fileNames;
     private final CheckboxWidget checkbox;
     private final int residueCount;
+    private final ButtonWidget classifyButton;
 
-    public ModGroupsEntry(String modId, List<String> fileNames, boolean selected, int residueCount, BiConsumer<String, Boolean> onToggle) {
+    public ModGroupsEntry(String modId, List<String> fileNames, boolean selected, int residueCount, BiConsumer<String, Boolean> onToggle, Runnable onClassify) {
         this.modId = modId;
         this.fileNames = fileNames;
         this.residueCount = residueCount;
+
+        if (this.modId.equals(ModGroup.UNCATEGORIZED_ID)) {
+            this.classifyButton = ButtonWidget.builder(Text.translatable("configswitch.button.classify"), button -> onClassify.run())
+                    .dimensions(0, 0, CLASSIFY_BUTTON_WIDTH, CLASSIFY_BUTTON_HEIGHT)
+                    .build();
+        } else {
+            this.classifyButton = null;
+        }
 
         this.checkbox = CheckboxWidget.builder(Text.empty(), MinecraftClient.getInstance().textRenderer)
                 .pos(0, 0)
@@ -84,6 +96,11 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
                     Text.translatable("configswitch.label.files_more", this.fileNames.size() - 1),
                     x + FILE_INDENT, fileY + LINE_HEIGHT, FILE_COLOR);
         }
+
+        if (this.classifyButton != null) {
+            this.classifyButton.setPosition(x + entryWidth - CLASSIFY_BUTTON_WIDTH - TEXT_PADDING_RIGHT, y + (entryHeight - CLASSIFY_BUTTON_HEIGHT) / 2);
+            this.classifyButton.render(context, mouseX, mouseY, tickDelta);
+        }
     }
 
     private static String trimWithEllipsis(TextRenderer textRenderer, String text, int maxWidth) {
@@ -96,11 +113,11 @@ public class ModGroupsEntry extends ElementListWidget.Entry<ModGroupsEntry> {
 
     @Override
     public List<? extends Selectable> selectableChildren() {
-        return List.of(this.checkbox);
+        return this.classifyButton == null ? List.of(this.checkbox) : List.of(this.checkbox, this.classifyButton);
     }
 
     @Override
     public List<? extends Element> children() {
-        return List.of(this.checkbox);
+        return this.classifyButton == null ? List.of(this.checkbox) : List.of(this.checkbox, this.classifyButton);
     }
 }
