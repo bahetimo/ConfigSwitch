@@ -8,25 +8,13 @@ import net.minecraft.client.gui.widget.ElementListWidget;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class ModGroupsWidget extends ElementListWidget<ModGroupsEntry> {
+public class ModGroupsWidget extends ScrollableListWidget<ModGroupsEntry> {
     public ModGroupsWidget(MinecraftClient minecraftClient, int width, int height, int y, int itemHeight) {
         super(minecraftClient, width, height, y, itemHeight);
-        // 条目从顶部开始排列，不随内容高度垂直居中
-        this.centerListVertically = false;
     }
 
-    public void addGroup(String modId, List<String> fileNames, boolean selected, int residueCount, BiConsumer<String, Boolean> onToggle) {
-        this.addEntry(new ModGroupsEntry(modId, fileNames, selected, residueCount, onToggle));
-    }
-
-    @Override
-    public int getRowWidth() {
-        return this.width - (this.isScrollbarVisible() ? 38 : 32);
-    }
-
-    @Override
-    protected int getScrollbarX() {
-        return this.getRight() - 6;
+    public void addGroup(String modId, List<String> fileNames, boolean selected, int residueCount, BiConsumer<String, Boolean> onToggle, Runnable onClassify) {
+        this.addEntry(new ModGroupsEntry(modId, fileNames, selected, residueCount, onToggle, onClassify));
     }
 
     public void clearGroups() {
