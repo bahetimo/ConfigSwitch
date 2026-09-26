@@ -10,7 +10,7 @@ public class MappingTable {
     private final Map<String, String> entries = new HashMap<>();
     public static final String IGNORE = "ignore";
 
-    private MappingTable(Map<String, String> entries) {
+    public MappingTable(Map<String, String> entries) {
         this.entries.putAll(entries);
     }
 
@@ -54,8 +54,12 @@ public class MappingTable {
         }
     }
 
-    private static MappingTable empty() {
+    public static MappingTable empty() {
         return new MappingTable(new HashMap<>());
+    }
+
+    public Map<String, String> entries(){
+        return Map.copyOf(this.entries);
     }
 
     private static void parseSeed(String seed, Map<String, String> tmp) {

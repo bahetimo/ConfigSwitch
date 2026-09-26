@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -157,6 +158,38 @@ public class MappingTableTest {
         MappingTable table = load("foo-bar\n");
 
         assertTrue(table.lookup("foo").isEmpty());
+    }
+
+    // ---------- 现成 Map 构造 / entries() / empty() ----------
+
+    // 用现成 Map 直接构造：不再经过文本解析（MappingsStore 注入种子后就是这条交接路径）
+    @Test
+    void testConstructFromMap() {
+        MappingTable table = new MappingTable(Map.of("yacl", "yet_another_config_lib_v3"));
+
+        assertEquals(1, table.size());
+        assertEquals(Optional.of("yet_another_config_lib_v3"), table.lookup("yacl"));
+    }
+
+    // entries() 交出的内容能原样喂回构造函数，条目一个不少
+    @Test
+    void testEntriesRoundTrip() {
+        MappingTable table = new MappingTable(Map.of("foo", "bar", "baz", "baz"));
+
+        MappingTable copy = new MappingTable(table.entries());
+
+        assertEquals(table.size(), copy.size());
+        assertEquals(Optional.of("bar"), copy.lookup("foo"));
+        assertEquals(Optional.of("baz"), copy.lookup("baz"));
+    }
+
+    // empty() 是公开的空表：查不到东西，也不抛
+    @Test
+    void testEmptyTableHasNoEntries() {
+        MappingTable table = MappingTable.empty();
+
+        assertEquals(0, table.size());
+        assertTrue(table.lookup("yacl").isEmpty());
     }
 
     // ---------- 内置种子 ----------
