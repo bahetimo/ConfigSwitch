@@ -11,6 +11,6 @@ public final class CandidateFilter {
     }
 
     public static boolean isCandidate(String modId) {
-        return modId.startsWith(FABRIC_PREFIX) && !EXCLUDED_IDS.contains(modId);
+        return !modId.startsWith(FABRIC_PREFIX) && !EXCLUDED_IDS.contains(modId);
     }
 }
