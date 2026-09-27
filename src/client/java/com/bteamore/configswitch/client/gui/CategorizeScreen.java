@@ -2,10 +2,7 @@ package com.bteamore.configswitch.client.gui;
 
 import com.bteamore.configswitch.client.gui.widget.CandidateListWidget;
 import com.bteamore.configswitch.client.gui.widget.UnclassifiedListWidget;
-import com.bteamore.configswitch.discovery.CandidateRanker;
-import com.bteamore.configswitch.discovery.MappingConfig;
-import com.bteamore.configswitch.discovery.MappingTable;
-import com.bteamore.configswitch.discovery.ModCandidate;
+import com.bteamore.configswitch.discovery.*;
 import com.bteamore.configswitch.util.Log;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
@@ -202,13 +199,9 @@ public class CategorizeScreen extends Screen {
     }
 
     private void loadCandidates() {
-        Set<String> filters = Set.of("java", "fabric-", "minecraft", "fabricloader", "configswitch");
         FabricLoader.getInstance().getAllMods()
                 .stream()
-                .filter(mod -> {
-                    String modId = mod.getMetadata().getId();
-                    return filters.stream().noneMatch(modId::startsWith);
-                })
+                .filter(mod -> CandidateFilter.isCandidate(mod.getMetadata().getId()))
                 .forEach(mod -> this.candidates.add(
                 new ModCandidate(
                         mod.getMetadata().getId(),
