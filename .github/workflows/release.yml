@@ -1,0 +1,161 @@
+name: Release
+
+# 两个通道，同一条链路：
+#   主通道   release: published      在 Release 页面写说明并发布
+#   补发通道 workflow_dispatch       只填版本号（changelog 从该 tag 的 message 读）
+#
+# 单个平台失败不走补发通道，用 Actions 页面原生的 "Re-run failed jobs"——
+# 前提就是下面每个平台各自是一个独立 job。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要重发的版本号，不含 v 前缀，例如 1.0.0-alpha.4+1.21.1'
+        required: true
+        type: string
+
+# 同一个版本不并发跑两次
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.version }}
+
+# 最小权限：本 workflow 只读代码——tag 是 Release 页面建的，我们不打 tag，也不写回仓库
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # 与 build.yml 一致用 Windows runner：本项目 v1 只支持 Windows，
+    # 且部分测试依赖 Windows 专有行为（ACL 可写判定、非法路径字符、异常类型），在 Linux 上会失败。
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 补发通道要读 tag 的注解 message，浅克隆拿不到 tag 的 message
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # 版本号的唯一真源是 git tag。这里只做「去掉前导 v」，
+      # 因为两个通道给的原始值形态不同（release 给 tag_name，dispatch 给人手填的输入）。
+      - name: Resolve version
+        id: version
+        shell: bash
+        env:
+          RAW: ${{ github.event.release.tag_name || inputs.version }}
+        run: |
+          V="${RAW#v}"
+          if [ -z "$V" ]; then
+            echo "::error::版本号为空（Release 的 tag 名，或 workflow_dispatch 的 version 输入）"
+            exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "版本号：$V"
+
+      # -PcurrentTag 是版本号注入的入口，由 build.gradle 读取。
+      # 传的是【不含 v】的版本号，所以 build.gradle 里直接用即可，
+      # 甚至不写 replaceFirst("^v","") 也是对的。
+      - name: Build
+        shell: bash
+        run: ./gradlew clean build -PcurrentTag="${{ steps.version.outputs.version }}"
+
+      # changelog 的来源随通道而变，但产物统一是 changelog.md——
+      # 这样后面的发布步骤只有一个分支，不必按通道写两份配置。
+      - name: Resolve changelog
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          # 主通道：Release body。经环境变量传入，避免多行内容被拼进脚本
+          RELEASE_BODY: ${{ github.event.release.body }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$EVENT" = "release" ]; then
+            printf '%s\n' "$RELEASE_BODY" > changelog.md
+          else
+            # 补发通道：读该 tag 的注解 message（GitHub 建 tag 时写入的就是 Release body）
+            git tag -l --format='%(contents)' "v$VERSION" > changelog.md
+          fi
+
+          if [ ! -s changelog.md ]; then
+            echo "::error::changelog 为空——Release body 没写，或 tag v$VERSION 不存在 / 是轻量 tag"
+            exit 1
+          fi
+          echo "changelog 前 5 行："
+          head -5 changelog.md
+
+      # 发布用的 jar 就是这里构建出来的那一个——不再在本地重新构建，
+      # 于是「CI 验证过的产物」和「发布出去的产物」是同一个文件。
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: |
+            build/libs/*.jar
+            changelog.md
+          if-no-files-found: error
+
+  curseforge:
+    name: Publish to CurseForge
+    needs: build
+    # 发布本身不需要 Windows，也不需要 JDK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+
+      - name: Publish
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          curseforge-id: 1699841
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+
+          # 只传主 jar。extglob 排除 -sources / -dev / -javadoc。
+          # 不能省：mc-publish 的默认值是【两行】——主 jar + 附加 jar（sources 等），
+          # 一旦不写 files 就会连 sources 一起传上去。
+          files: build/libs/!(*-@(dev|sources|javadoc)).jar
+          version: ${{ needs.build.outputs.version }}
+          changelog-file: changelog.md
+
+          # 下面两项写出来是【显式优于隐式】：它们本来有默认值（从 jar 的元数据推断）
+          # 多版本管理时会改成按分支区分，届时再收回。
+          game-versions: 1.21.1
+          loaders: fabric
+
+          # version-type 故意不写：默认就会从 version 里的 -alpha / -beta 后缀推导
+
+  # Modrinth项目审核通过后启用
+  # modrinth:
+  #   name: Publish to Modrinth
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download release bundle
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: release-bundle
+  #
+  #     - name: Publish
+  #       uses: Kir-Antipov/mc-publish@v3.3
+  #       with:
+  #         modrinth-id: 0000000
+  #         modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+  #
+  #         files: build/libs/!(*-@(dev|sources|javadoc)).jar
+  #         version: ${{ needs.build.outputs.version }}
+  #         changelog-file: changelog.md
+  #
+  #         game-versions: 1.21.1
+  #         loaders: fabric

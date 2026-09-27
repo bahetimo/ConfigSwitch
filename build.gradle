@@ -3,7 +3,23 @@ plugins {
     id 'maven-publish'
 }
 
-version = project.mod_version
+def computeVersion(){
+    if (project.hasProperty("currentTag")) {
+        return project.currentTag.replaceFirst("^v", "")
+    }
+    try {
+        def desc = project.providers.exec {
+            commandLine "git", "describe", "--tags", "--always", "--dirty"
+            ignoreExitValue = true
+        }.standardOutput.asText.get().trim()
+        return desc.isEmpty() ? "0.0.0-dev" : desc.replaceFirst("^v", "")
+    } catch (Exception ignored) {
+        return "0.0.0-dev"
+    }
+}
+
+//version = project.mod_version
+version = computeVersion()
 group = project.maven_group
 
 base {
