@@ -21,7 +21,7 @@ public class ConfigClassifier {
         this.repoModIds = repoModIds;
     }
 
-    public List<ModGroup> classify(Path optionsFile, List<Path> configFiles) {
+    public List<ModGroup> classify(Path optionsFile, Path configDir, List<Path> configFiles) {
         List<ModGroup> groups = new ArrayList<>();
 
         // 原版组（options.txt 存在才加）
@@ -31,33 +31,45 @@ public class ConfigClassifier {
             groups.add(vanilla);
         }
 
+        // 按长度降序排序，确保长的modid先匹配
         List<String> sortedInstalledModIds = getSortedModIds(installedModIds);
         List<String> sortedRepoModIds = getSortedModIds(repoModIds);
 
         ModGroup uncategorized = null;
-        // 按长度降序排序，确保长的modid先匹配
         for (Path file : configFiles) {
-            // 匹配seed表
-            Optional<String> targetModId = mapping.lookup(file.getFileName().toString());
-            if (targetModId.isPresent()) {
-                if (MappingTable.IGNORE.equals(targetModId.get())) {
-                    continue;
+            boolean ignored = false;
+            String target = null;
+            for (String candidate : candidatesOf(file, configDir)){
+                // 匹配seed表
+                Optional<String> targetModId = mapping.lookup(candidate);
+                if (targetModId.isPresent()) {
+                    if (MappingTable.IGNORE.equals(targetModId.get())) {
+                        ignored = true;
+                        break;
+                    }
+                    target = targetModId.get();
+                    break;
                 }
-                findOrCreate(groups, targetModId.get()).addFile(file);
+
+                // 匹配已安装mod
+                String modId = matchModId(candidate, sortedInstalledModIds);
+                if (modId != null) {
+                    target = modId;
+                    break;
+                }
+
+                // 匹配repo中的mod
+                modId = matchModId(candidate, sortedRepoModIds);
+                if (modId != null) {
+                    target = modId;
+                    break;
+                }
+            }
+            if (ignored) {
                 continue;
             }
-
-            // 匹配已安装mod
-            String modId = matchModId(file, sortedInstalledModIds);
-            if (modId != null) {
-                findOrCreate(groups, modId).addFile(file);
-                continue;
-            }
-
-            // 匹配repo中的mod
-            modId = matchModId(file, sortedRepoModIds);
-            if (modId != null) {
-                findOrCreate(groups, modId).addFile(file);
+            if (target != null) {
+                findOrCreate(groups, target).addFile(file);
                 continue;
             }
 
@@ -95,16 +107,31 @@ public class ConfigClassifier {
                 .toList();
     }
 
-    private String matchModId(Path file, List<String> modIds) {
-        String name = file.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        String stem = (dot < 0) ? name : name.substring(0, dot);
+    private static List<String> candidatesOf(Path file, Path configDir) {
+        String stem = stemOf(file.getFileName().toString());
+        Path parent = file.getParent();
+        if (parent != null && !parent.equals(configDir)) {
+            String firstDir = configDir.relativize(parent).getName(0).toString();
+            if (!firstDir.equalsIgnoreCase(stem)) {
+                return List.of(firstDir, stem);
+            }
+        }
+        return List.of(stem);
+    }
+
+    private String matchModId(String name, List<String> modIds) {
+        String stem = stemOf(name);
         for (String modId : modIds) {
             if (StemMatches.matches(modId, stem)) {
                 return modId;
             }
         }
         return null;
+    }
+
+    private static String stemOf(String name) {
+        int dot = name.lastIndexOf('.');
+        return (dot < 0) ? name : name.substring(0, dot);
     }
 
     private ModGroup findOrCreate(List<ModGroup> groups, String modId) {

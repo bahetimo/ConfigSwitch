@@ -213,6 +213,7 @@ public class CategorizeScreen extends Screen {
         // 左栏不重建：选中标记由 Supplier 现问，滚动位置保持
         // 按文件名重排候选
         List<ModCandidate> rank = CandidateRanker.rank(fileName, this.candidates);
+        Log.debug("Ranked candidates for {}: {}", fileName, rank);
         this.candidates.clear();
         this.candidates.addAll(rank);
         this.selectedModId = this.selectedMappings.getOrDefault(fileName, null);

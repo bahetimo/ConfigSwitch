@@ -13,6 +13,8 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class Log {
     public static final String NAME = "configswitch";
@@ -89,6 +91,66 @@ public final class Log {
             }
             Files.writeString(LOG_PATH, text, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException ignore) {
+        }
+    }
+
+    public static Table table(String header) {
+        return new Table().row("", header);
+    }
+
+    // 多行日志块：同一缩进、同列数的连续行共用一个列宽，最后一列不补空格
+    public static final class Table {
+        private final StringBuilder block = new StringBuilder();
+        private final List<String[]> run = new ArrayList<>();
+        private String runIndent = "";
+        private int runColumns = -1;
+
+        public Table row(String indent, String... cells) {
+            if (runColumns >= 0 && (runColumns != cells.length || !runIndent.equals(indent))) {
+                flush();
+            }
+            runIndent = indent;
+            runColumns = cells.length;
+            run.add(cells);
+            return this;
+        }
+
+        private void flush() {
+            if (runColumns < 0) {
+                return;
+            }
+
+            int[] widths = new int[runColumns];
+            for (String[] cells : run) {
+                for (int i = 0; i < runColumns; i++) {
+                    widths[i] = Math.max(widths[i], cells[i].length());
+                }
+            }
+
+            for (String[] cells : run) {
+                if (block.length() > 0) {
+                    block.append('\n');
+                }
+                block.append(runIndent);
+                for (int i = 0; i < runColumns; i++) {
+                    if (i > 0) {
+                        block.append("  ");
+                    }
+                    block.append(cells[i]);
+                    if (i < runColumns - 1) {
+                        block.append(" ".repeat(widths[i] - cells[i].length()));
+                    }
+                }
+            }
+
+            run.clear();
+            runColumns = -1;
+        }
+
+        @Override
+        public String toString() {
+            flush();
+            return block.toString();
         }
     }
 }

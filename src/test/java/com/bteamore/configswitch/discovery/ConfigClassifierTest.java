@@ -29,8 +29,9 @@ public class ConfigClassifierTest {
     }
 
     // 只关心 L2 的用例：喂已安装集合即可（无映射表、无仓库目录、无 options.txt）
+    // 文件都在 config 根下，所以 configDir 固定传 config
     private static List<ModGroup> classify(Set<String> installedModIds, Path... configFiles) {
-        return new ConfigClassifier(installedModIds, NO_MAPPING, Set.of()).classify(null, List.of(configFiles));
+        return new ConfigClassifier(installedModIds, NO_MAPPING, Set.of()).classify(null, Path.of("config"), List.of(configFiles));
     }
 
     //文件名匹配modid时归组
@@ -50,7 +51,7 @@ public class ConfigClassifierTest {
         Files.createFile(optionsFile);
 
         ConfigClassifier classifier = new ConfigClassifier(Set.of(), NO_MAPPING, Set.of());
-        List<ModGroup> groups = classifier.classify(optionsFile, List.of());
+        List<ModGroup> groups = classifier.classify(optionsFile, tempDir.resolve("config"), List.of());
 
         assertEquals(1, groups.size());
         assertEquals(ModGroup.VANILLA_ID, groups.get(0).getModId());
@@ -232,7 +233,7 @@ public class ConfigClassifierTest {
         ConfigClassifier classifier = new ConfigClassifier(
                 Set.of("yet_another_config_lib_v3"), mappingOf("yacl = yet_another_config_lib_v3"), Set.of());
 
-        List<ModGroup> groups = classifier.classify(null, List.of(Path.of("config/yacl.json5")));
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(Path.of("config/yacl.json5")));
 
         assertEquals(1, groups.size());
         assertEquals("yet_another_config_lib_v3", groups.get(0).getModId());
@@ -244,7 +245,7 @@ public class ConfigClassifierTest {
         ConfigClassifier classifier = new ConfigClassifier(
                 Set.of("foo-bar", "real"), mappingOf("foo-bar = real"), Set.of());
 
-        List<ModGroup> groups = classifier.classify(null, List.of(Path.of("config/foo-bar.cfg")));
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(Path.of("config/foo-bar.cfg")));
 
         assertEquals(1, groups.size());
         assertEquals("real", groups.get(0).getModId());
@@ -255,7 +256,7 @@ public class ConfigClassifierTest {
     void testMappingIgnoreDropsFile() {
         ConfigClassifier classifier = new ConfigClassifier(Set.of(), mappingOf("foo = ignore"), Set.of());
 
-        List<ModGroup> groups = classifier.classify(null, List.of(Path.of("config/foo.json")));
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(Path.of("config/foo.json")));
 
         assertTrue(groups.isEmpty());
     }
@@ -268,7 +269,7 @@ public class ConfigClassifierTest {
         ConfigClassifier classifier = new ConfigClassifier(
                 Set.of(), mappingOf("yacl = yet_another_config_lib_v3"), Set.of());
 
-        List<ModGroup> groups = classifier.classify(null, List.of(Path.of("config/yacl.json5")));
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(Path.of("config/yacl.json5")));
 
         assertEquals(1, groups.size());
         assertEquals(ModGroup.RESIDUE_ID, groups.get(0).getModId());
@@ -286,7 +287,7 @@ public class ConfigClassifierTest {
                 mappingOf("sodium-extra = sodium-extra"),  // 表里是带连字符的真 modid
                 Set.of());
 
-        List<ModGroup> groups = classifier.classify(null,
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"),
                 List.of(Path.of("config/sodium-extra-options.json")));
 
         assertEquals(1, groups.size());
@@ -298,7 +299,7 @@ public class ConfigClassifierTest {
     void testRepoModMatchGoesToResidue() {
         ConfigClassifier classifier = new ConfigClassifier(Set.of("xaerominimap"), NO_MAPPING, Set.of("xaeropatreon"));
 
-        List<ModGroup> groups = classifier.classify(null, List.of(Path.of("config/xaeropatreon.txt")));
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(Path.of("config/xaeropatreon.txt")));
 
         assertEquals(1, groups.size());
         assertEquals(ModGroup.RESIDUE_ID, groups.get(0).getModId());
@@ -310,7 +311,7 @@ public class ConfigClassifierTest {
     void testResiduesMergedIntoSingleGroup() {
         ConfigClassifier classifier = new ConfigClassifier(Set.of(), NO_MAPPING, Set.of("foo", "bar"));
 
-        List<ModGroup> groups = classifier.classify(null, List.of(
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(
                 Path.of("config/foo.json"),
                 Path.of("config/bar.json")
         ));
@@ -325,7 +326,7 @@ public class ConfigClassifierTest {
     void testResidueGroupAppendedLast() {
         ConfigClassifier classifier = new ConfigClassifier(Set.of("sodium"), NO_MAPPING, Set.of("xaeropatreon"));
 
-        List<ModGroup> groups = classifier.classify(null, List.of(
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(
                 Path.of("config/xaeropatreon.txt"),
                 Path.of("config/sodium.json")
         ));
@@ -333,5 +334,85 @@ public class ConfigClassifierTest {
         assertEquals(2, groups.size());
         assertEquals("sodium", groups.get(0).getModId());
         assertEquals(ModGroup.RESIDUE_ID, groups.get(1).getModId());
+    }
+
+    // ---------- 逐文件状态不跨文件残留 ----------
+
+    // 反证 target 不重置：第一个文件命中、第二个不命中，后者必须落回未分类
+    @Test
+    void testTargetDoesNotLeakBetweenFiles() {
+        List<ModGroup> groups = classify(Set.of("sodium"),
+                Path.of("config/sodium.json"),
+                Path.of("config/unknown.json"));
+
+        assertEquals(2, groups.size());
+        assertEquals("sodium", groups.get(0).getModId());
+        assertEquals(List.of(Path.of("config/sodium.json")), groups.get(0).getFiles());
+        assertEquals(ModGroup.UNCATEGORIZED_ID, groups.get(1).getModId());
+        assertEquals(List.of(Path.of("config/unknown.json")), groups.get(1).getFiles());
+    }
+
+    // 反证 ignored 不重置：前一个被映射表忽略，后一个正常文件仍要归组
+    @Test
+    void testIgnoredFlagDoesNotLeakBetweenFiles() {
+        ConfigClassifier classifier = new ConfigClassifier(Set.of("sodium"), mappingOf("foo = ignore"), Set.of());
+
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"), List.of(
+                Path.of("config/foo.json"),
+                Path.of("config/sodium.json")
+        ));
+
+        assertEquals(1, groups.size());
+        assertEquals("sodium", groups.get(0).getModId());
+        assertEquals(List.of(Path.of("config/sodium.json")), groups.get(0).getFiles());
+    }
+
+    // ---------- 子目录：第一段目录名参与匹配 ----------
+
+    // 目录名命中则归该 mod；目录名不命中时回落文件名，两者都不命中才进未分类
+    @Test
+    void testSubdirNameIsCandidateBeforeFileName() {
+        List<ModGroup> groups = classify(Set.of("sodium"),
+                Path.of("config/sodium/options.json5"),
+                Path.of("config/unknown/options.json5"));
+
+        assertEquals(2, groups.size());
+        assertEquals("sodium", groups.get(0).getModId());
+        assertEquals(List.of(Path.of("config/sodium/options.json5")), groups.get(0).getFiles());
+        assertEquals(ModGroup.UNCATEGORIZED_ID, groups.get(1).getModId());
+        assertEquals(List.of(Path.of("config/unknown/options.json5")), groups.get(1).getFiles());
+    }
+
+    // 目录名候选先跑完一遇命中就结束，文件名候选哪怕能命中映射表也不越级
+    @Test
+    void testDirNameCandidateWinsOverMappingOnFileName() {
+        ConfigClassifier classifier = new ConfigClassifier(Set.of("moda"), mappingOf("modb = x"), Set.of());
+
+        List<ModGroup> groups = classifier.classify(null, Path.of("config"),
+                List.of(Path.of("config/modA/modB.json")));
+
+        assertEquals(1, groups.size());
+        assertEquals("moda", groups.get(0).getModId());
+        assertEquals(List.of(Path.of("config/modA/modB.json")), groups.get(0).getFiles());
+    }
+
+    // 目录名候选全不命中时回落到文件名候选
+    @Test
+    void testFallsBackToFileNameCandidate() {
+        List<ModGroup> groups = classify(Set.of("sodium"), Path.of("config/weird/sodium.json"));
+
+        assertEquals(1, groups.size());
+        assertEquals("sodium", groups.get(0).getModId());
+        assertEquals(List.of(Path.of("config/weird/sodium.json")), groups.get(0).getFiles());
+    }
+
+    // 目录名候选与文件名候选一样大小写不敏感
+    @Test
+    void testDirNameCandidateCaseInsensitive() {
+        List<ModGroup> groups = classify(Set.of("nochatreports"), Path.of("config/NoChatReports/NCR-Client.json"));
+
+        assertEquals(1, groups.size());
+        assertEquals("nochatreports", groups.get(0).getModId());
+        assertEquals(List.of(Path.of("config/NoChatReports/NCR-Client.json")), groups.get(0).getFiles());
     }
 }

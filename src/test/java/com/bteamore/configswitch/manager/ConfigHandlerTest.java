@@ -101,6 +101,20 @@ public class ConfigHandlerTest {
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
     }
 
+    // 嵌套相对路径：global 与 backup 都保留子目录结构，父目录不存在时自动创建
+    @Test
+    void testPushKeepsNestedRelativePath() throws IOException {
+        ConfigPaths paths = newPaths("sub/a.cfg");
+        write(paths.active(), "new");
+        write(paths.global(), "old");
+
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+
+        assertEquals("new", Files.readString(paths.global()));
+        assertEquals("old", Files.readString(paths.backup()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
+    }
+
     // 列表中的 null 元素跳过，不影响其余条目
     @Test
     void testPushSkipsNullEntry() throws IOException {
@@ -443,7 +457,7 @@ public class ConfigHandlerTest {
     // 时间戳格式（与 Time.timeString 一致）：yyyy-MM-dd--HH-mm-ss
     private static final String TS_FMT = "2026-09-07--%02d-00-00";
 
-    // 构造 push 语义的 ConfigPaths：backup 落在 backupRoot/<ts>/<fileName>
+    // 构造 push 语义的 ConfigPaths：backup 落在 backupRoot/<ts>/<relativePath>
     private ConfigPaths pushPaths(Path backupRoot, String ts, String fileName) {
         return new ConfigPaths(
                 fileName,

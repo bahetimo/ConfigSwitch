@@ -10,7 +10,7 @@ public class ConfigPathResolver {
         this.gameDir = gameDir;
     }
 
-    public ConfigPaths resolve(String modId, String fileName, String timestamp, String operation) {
+    public ConfigPaths resolve(String modId, String relativePath, String timestamp, String operation) {
         if (modId == null) {
             return null;
         }
@@ -26,24 +26,24 @@ public class ConfigPathResolver {
             //     return null; // Uncategorized不处理
             // }
         }
-        Path active = gameDir.resolve(cfgDir).resolve(fileName);
-        Path global = RepoPaths.commonDir().resolve(modDir).resolve(fileName);
+        Path active = gameDir.resolve(cfgDir).resolve(relativePath);
+        Path global = RepoPaths.commonDir().resolve(modDir).resolve(relativePath);
         Path backupRoot;
         Path backup;
         switch (operation) {
             case "fetch" -> {
                 backupRoot = RepoPaths.localBackupDir(gameDir);
-                backup = backupRoot.resolve(timestamp).resolve(cfgDir).resolve(fileName);
+                backup = backupRoot.resolve(timestamp).resolve(cfgDir).resolve(relativePath);
             }
             case "push" -> {
                 backupRoot = RepoPaths.backupDir();
-                backup = backupRoot.resolve(timestamp).resolve(modDir).resolve(fileName);
+                backup = backupRoot.resolve(timestamp).resolve(modDir).resolve(relativePath);
             }
             default -> {
                 return null;
             }
         }
 
-        return new ConfigPaths(fileName, active, global, backup, backupRoot, modId);
+        return new ConfigPaths(relativePath, active, global, backup, backupRoot, modId);
     }
 }

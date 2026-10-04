@@ -36,7 +36,7 @@ public class ConfigPathResolverTest {
         ConfigPaths paths = resolver.resolve("minecraft", "options.txt", "ts", "fetch");
 
         assertNotNull(paths);
-        assertEquals("options.txt", paths.fileName());
+        assertEquals("options.txt", paths.relativePath());
         // modId 透传 group id：minecraft 组只有 modDir 被置空，modId 仍是 "minecraft"
         assertEquals("minecraft", paths.modId());
         assertEquals(gameDir.resolve("options.txt"), paths.active());
@@ -57,7 +57,7 @@ public class ConfigPathResolverTest {
         ConfigPaths paths = resolver.resolve("sodium", "sodium-options.json", "ts", "fetch");
 
         assertNotNull(paths);
-        assertEquals("sodium-options.json", paths.fileName());
+        assertEquals("sodium-options.json", paths.relativePath());
         assertEquals("sodium", paths.modId());
         assertEquals(gameDir.resolve("config").resolve("sodium-options.json"), paths.active());
         assertEquals(COMMON_DIR.resolve("sodium").resolve("sodium-options.json"), paths.global());
@@ -99,6 +99,32 @@ public class ConfigPathResolverTest {
         assertEquals(gameDir.resolve("config").resolve("sub/options.json"), paths.active());
         assertEquals(COMMON_DIR.resolve("sodium").resolve("sub/options.json"), paths.global());
         assertEquals(fetchBackup("ts", "config", "sub/options.json"), paths.backup());
+    }
+
+    // 多级子目录：relativePath 原样透传，push 的 global 与 backup 都保留嵌套
+    @Test
+    void testResolveNestedPathPush() {
+        ConfigPathResolver resolver = new ConfigPathResolver(gameDir);
+
+        ConfigPaths paths = resolver.resolve("sodium", "sub/deep/x.json", "ts", "push");
+
+        assertNotNull(paths);
+        assertEquals("sub/deep/x.json", paths.relativePath());
+        assertEquals(gameDir.resolve("config").resolve("sub/deep/x.json"), paths.active());
+        assertEquals(COMMON_DIR.resolve("sodium").resolve("sub/deep/x.json"), paths.global());
+        assertEquals(GLOBAL_BACKUP_DIR.resolve("ts").resolve("sodium").resolve("sub/deep/x.json"), paths.backup());
+        assertEquals(GLOBAL_BACKUP_DIR, paths.backupRoot());
+    }
+
+    // 核心不变量在嵌套路径下同样成立：快照内相对路径（去 <ts> 层）== active 相对 gameDir
+    @Test
+    void testNestedFetchBackupLayoutMirrorsGameDir() {
+        ConfigPathResolver resolver = new ConfigPathResolver(gameDir);
+
+        ConfigPaths mod = resolver.resolve("sodium", "sub/deep/options.json", "ts", "fetch");
+
+        assertEquals(Path.of("config", "sub", "deep", "options.json"), snapshotRelative(mod));
+        assertEquals(gameDir.relativize(mod.active()), snapshotRelative(mod));
     }
 
     // 不同 timestamp 对应不同备份目录，避免多次推送互相覆盖

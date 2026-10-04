@@ -184,7 +184,7 @@ public class ConfigScreen extends Screen {
 
         List<ConfigPaths> configPaths = selectedGroups.stream()
                 .flatMap(group -> group.getFiles().stream()
-                        .map(path -> resolver.resolve(group.getModId(), path.getFileName().toString(), timeStamp, name)))
+                        .map(path -> resolver.resolve(group.getModId(), relativeOf(path), timeStamp, name)))
                 .filter(Objects::nonNull)
                 .toList();
 
@@ -314,5 +314,13 @@ public class ConfigScreen extends Screen {
                 .flatMap(group -> group.getFiles().stream()
                         .map(path -> path.getFileName().toString()))
                 .toList();
+    }
+
+    private String relativeOf(Path file) {
+        Path configDir = this.gameDir.resolve("config");
+        if (file.startsWith(configDir)){
+            return configDir.relativize(file).toString().replace("\\", "/");
+        }
+        return file.getFileName().toString();
     }
 }
