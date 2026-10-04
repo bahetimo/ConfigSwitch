@@ -31,6 +31,17 @@ That's it — no config files to edit by hand.
 The list groups configs **by mod**, so you tick *sodium* — not six separate `.json`
 files. Select all / invert and a search box are there for when the list gets long.
 
+### Configs in subfolders are found too
+
+Plenty of mods keep their configs in a folder of their own — `config/jei/`,
+`config/NoChatReports/`. Those files show up in the list like any other config,
+grouped by the folder they sit in.
+
+Not everything in a subfolder is yours to sync, though. **Per-world data,
+caches, and the settings a modpack author ships with their pack are left
+alone** — those belong to the pack, not to your setup, and carrying them between
+packs would break the pack's balance.
+
 ### Nothing is lost when it doesn't match
 
 Configs that can't be matched to an installed mod go to **Uncategorized**, and
@@ -87,9 +98,10 @@ Change where the repository lives, and how many backups to keep.
 
 - **Mod configs take effect after a game restart** — `options.txt` applies
   immediately, but mods read their configs at startup
-- Configs stored in **subfolders** of `config/` aren't scanned yet
 - Config files whose names don't resemble their mod id, and that aren't in the
   built-in mappings, still end up in *Uncategorized*
+- Some mods store their configs under a name that doesn't match the mod at all —
+  WTHIT keeps its files as `waila_*`. Those can't be matched automatically
 - **Classify only offers mods you have installed** — a config for a mod you
   haven't installed yet can't be aimed at it in advance
 - Windows only for now
@@ -113,5 +125,7 @@ it's a one-off and does not persist.
 MIT — see [LICENSE.txt](https://github.com/bahetimo/ConfigSwitch/blob/main/LICENSE.txt)
 
 ## For contributors
+
+- **Release process** — see [RELEASE.md](RELEASE.md)
 
 The screenshots live in [`res/`](res/) so they stay out of the built jar.
