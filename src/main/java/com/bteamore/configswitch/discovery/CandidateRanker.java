@@ -7,12 +7,21 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public final class CandidateRanker {
-    // 分数降序 -> modId.length() 降序 -> modId 字母序
+    // 分数降序 -> 分数>0 modId.length() 降序 -> modId 字母序
     public static List<ModCandidate> rank(String stem, List<ModCandidate> candidates) {
+        record Scored(int score, ModCandidate candidate){}
+
         return candidates.stream()
-                .sorted(Comparator.comparingInt((ModCandidate c) -> score(stem, c)).reversed()
-                        .thenComparing(Comparator.comparingInt((ModCandidate c) -> c.modId().length()).reversed())
-                        .thenComparing(ModCandidate::modId))
+                .map(c -> new Scored(score(stem, c), c))
+                .sorted(Comparator.comparingInt(Scored::score).reversed()
+                        .thenComparing(Comparator.comparingInt((Scored s) -> {
+                            if (s.score() > 0){
+                                return s.candidate().modId().length();
+                            }
+                            return 0;
+                        }).reversed())
+                        .thenComparing((Scored s) -> s.candidate().modId()))
+                .map(Scored::candidate)
                 .toList();
     }
 

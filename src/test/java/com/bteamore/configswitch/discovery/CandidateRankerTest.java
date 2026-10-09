@@ -40,6 +40,27 @@ public class CandidateRankerTest {
         assertEquals(List.of("entity_texture_features", "etf"), order("etf_warnings", etf, prefixHit));
     }
 
+    // ---------- 分数优先：高分靠前，哪怕 modId 更短 ----------
+
+    // modId 相等（100）压过 acronym（90），即使命中者 modId 更短
+    @Test
+    void testHigherScoreRanksFirstDespiteShorterModId() {
+        ModCandidate etf = new ModCandidate("etf", "Simple Test Mod");
+        ModCandidate longId = new ModCandidate("entity_texture_features", "Entity Texture Features");
+
+        assertEquals(List.of("etf", "entity_texture_features"), order("etf", etf, longId));
+    }
+
+    // 0 分候选不参与长度优先：命中者在前，其余按字母序，而不是 modId 长度降序
+    @Test
+    void testZeroScoreCandidatesFallBackToAlphabetical() {
+        ModCandidate hit = new ModCandidate("sodium", "Sodium");
+        ModCandidate shortZero = new ModCandidate("appleskin", "Whatever Name");
+        ModCandidate longZero = new ModCandidate("zz_unrelated_mod", "Unrelated");
+
+        assertEquals(List.of("sodium", "appleskin", "zz_unrelated_mod"), order("sodium", longZero, hit, shortZero));
+    }
+
     // ---------- 冲突与稳定性 ----------
 
     // 必经的冲突：两条都前缀命中（80），长的 modId 在前
@@ -74,14 +95,14 @@ public class CandidateRankerTest {
 
     // ---------- 不过滤 ----------
 
-    // 一个都匹配不上时仍然全部返回，只是分都是 0（顺序退化成 长度降序 → 字母序）
+    // 一个都匹配不上时仍然全部返回，只是分都是 0（顺序退化成字母序）
     @Test
     void testNoMatchReturnsAllCandidatesWithZeroScore() {
         ModCandidate sodium = new ModCandidate("sodium", "Sodium");
         ModCandidate etf = new ModCandidate("entity_texture_features", "Entity Texture Features");
         ModCandidate yacl = new ModCandidate("yet_another_config_lib_v3", "Yet Another Config Lib");
 
-        assertEquals(List.of("yet_another_config_lib_v3", "entity_texture_features", "sodium"),
+        assertEquals(List.of("entity_texture_features", "sodium", "yet_another_config_lib_v3"),
                 order("zzzz", sodium, etf, yacl));
     }
 
@@ -144,7 +165,6 @@ public class CandidateRankerTest {
     }
 
     // 空：displayName 为 null 时也不该抛 —— acronym 有 null 守卫，token 这条路径得一样容忍
-    // 现状：score() 里的 tokens() 直接对 name 调 replaceAll → NPE，所以这条现在是红的
     @Test
     void testNullDisplayNameDoesNotThrow() {
         ModCandidate nullName = new ModCandidate("sodium_extra", null);
