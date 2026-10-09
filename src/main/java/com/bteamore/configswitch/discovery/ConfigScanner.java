@@ -18,7 +18,7 @@ public class ConfigScanner {
 
     // 配置文件白名单
     private static final Set<String> WHITELIST = Set.of(
-            "json", "json5", "toml", "properties", "ini", "cfg", "conf", "config", "txt"
+            "json", "json5", "toml", "properties", "ini", "cfg", "conf", "config", "txt", "yml", "yaml"
     );
 
     // 按文件名整体排除（Fabric Loader 生成物，不是 mod 配置）
