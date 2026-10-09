@@ -108,7 +108,7 @@ public class ConfigClassifier {
     }
 
     private static List<String> candidatesOf(Path file, Path configDir) {
-        String stem = stemOf(file.getFileName().toString());
+        String stem = FileNames.stemOf(file.getFileName().toString());
         Path parent = file.getParent();
         if (parent != null && !parent.equals(configDir)) {
             String firstDir = configDir.relativize(parent).getName(0).toString();
@@ -120,18 +120,13 @@ public class ConfigClassifier {
     }
 
     private String matchModId(String name, List<String> modIds) {
-        String stem = stemOf(name);
+        String stem = FileNames.stemOf(name);
         for (String modId : modIds) {
             if (StemMatches.matches(modId, stem)) {
                 return modId;
             }
         }
         return null;
-    }
-
-    private static String stemOf(String name) {
-        int dot = name.lastIndexOf('.');
-        return (dot < 0) ? name : name.substring(0, dot);
     }
 
     private ModGroup findOrCreate(List<ModGroup> groups, String modId) {

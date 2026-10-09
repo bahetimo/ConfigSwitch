@@ -71,8 +71,7 @@ public class ConfigDiscovery {
     private SubdirReport analyzeSubdirs(List<Path> flatFiles) {
         long startTime = System.nanoTime();
         Set<String> flatStems = flatFiles.stream()
-                .map(p -> p.getFileName().toString())
-                .map(name -> name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name)
+                .map(p -> FileNames.stemOf(p.getFileName().toString()))
                 .collect(Collectors.toSet());
 
         SubdirReport report = SubdirAnalyzer.analyze(configDir, flatStems);
