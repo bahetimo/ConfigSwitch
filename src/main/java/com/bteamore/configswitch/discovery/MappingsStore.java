@@ -5,6 +5,7 @@ import com.bteamore.configswitch.util.Log;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,6 +24,7 @@ public class MappingsStore {
         }
 
         Map<String, String> loaded = this.load().entries();
+        loaded = this.newStem(loaded);
         Map<String, String> toAdd = new LinkedHashMap<>();
         for (var e : seed.entrySet()) {
             if (!loaded.containsKey(e.getKey())) {
@@ -35,12 +37,60 @@ public class MappingsStore {
         return this.load();
     }
 
+    // 读入归一化：键统一收成 stem
+    private Map<String, String> newStem(Map<String, String> loaded) {
+        Map<String, String> stems = new LinkedHashMap<>();
+        Map<String, String> legacy = new LinkedHashMap<>();
+        for (var entry : loaded.entrySet()) {
+            String stem = FileNames.stemOf(entry.getKey());
+            if (stem.equals(entry.getKey())) {
+                stems.put(entry.getKey(), entry.getValue());
+            } else {
+                legacy.put(stem, entry.getValue());
+            }
+        }
+        if (legacy.isEmpty()) {
+            return stems;
+        }
+
+        // 两种写法并存时以已归一化的键为准
+        legacy.forEach(stems::putIfAbsent);
+        this.rewrite(stems);
+        return stems;
+    }
+
+    private void rewrite(Map<String, String> loaded) {
+        Path parent = mappingPath.getParent();
+        Path temp = null;
+        try {
+            Files.createDirectories(parent);
+            temp = Files.createTempFile(parent, "mappings", ".tmp");
+            StringBuilder text = new StringBuilder();
+            loaded.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> text.append(e.getKey()).append('=').append(e.getValue()).append('\n'));
+            Files.writeString(temp, text.toString());
+            Files.move(temp, mappingPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            temp = null;
+        } catch (IOException e) {
+            Log.error("Failed to rewrite mappings to {}", mappingPath, e);
+        } finally {
+            if (temp != null) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException e) {
+                    Log.warn("Failed to delete temp mappings file {}", temp, e);
+                }
+            }
+        }
+    }
+
     public boolean append(Map<String, String> mappings) {
         try {
             Files.createDirectories(mappingPath.getParent());
             try (var writer = Files.newBufferedWriter(mappingPath, StandardOpenOption.APPEND, StandardOpenOption.CREATE)){
                 for (Map.Entry<String, String> entry : mappings.entrySet()) {
-                    writer.write("\n" + entry.getKey() + "=" + entry.getValue());
+                    writer.write("\n" + FileNames.stemOf(entry.getKey()) + "=" + entry.getValue());
                 }
             }
         } catch (IOException e) {
@@ -55,8 +105,8 @@ public class MappingsStore {
             return MappingTable.empty();
         }
 
-        try {
-            return MappingTable.load(Files.newBufferedReader(mappingPath));
+        try (var reader = Files.newBufferedReader(mappingPath)) {
+            return MappingTable.load(reader);
         } catch (IOException e) {
             Log.error("Failed to load mappings from {}", mappingPath, e);
             return MappingTable.empty();

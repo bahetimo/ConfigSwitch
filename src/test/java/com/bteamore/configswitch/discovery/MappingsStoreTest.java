@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -122,6 +123,66 @@ public class MappingsStoreTest {
         assertEquals(0, store.injectSeed(null).size());
         assertEquals(0, store.injectSeed(Map.of()).size());
         assertFalse(Files.exists(mappingPath()));
+    }
+
+    // ---------- ④ 旧格式迁移 ----------
+
+    // 旧键（带扩展名）→ 键归一化为 stem：文件被原地重写，值不变
+    @Test
+    void testLegacyKeysAreMigratedToStems() throws IOException {
+        writeFile("yacl.json5=yet_another_config_lib_v3\netf_warnings.json=entity_texture_features\n");
+        MappingsStore store = store();
+
+        store.injectSeed(Map.of("yacl", "yet_another_config_lib_v3"));
+
+        assertEquals("etf_warnings=entity_texture_features\nyacl=yet_another_config_lib_v3\n",
+                Files.readString(mappingPath()));
+        // 读文件本身：换一个全新实例也要读得到（迁移结果是落盘的，不是内存里的）
+        MappingTable reloaded = store().load();
+        assertEquals(Optional.of("yet_another_config_lib_v3"), reloaded.lookup("yacl"));
+        assertEquals(Optional.of("entity_texture_features"), reloaded.lookup("etf_warnings"));
+    }
+
+    // 迁移只发生一次：已是 stem 的键不再被当成旧格式，内容与 mtime 都不该变
+    @Test
+    void testMigrationHappensOnlyOnce() throws IOException {
+        writeFile("yacl.json5=yet_another_config_lib_v3\n");
+        MappingsStore store = store();
+        Map<String, String> seed = Map.of("yacl", "yet_another_config_lib_v3");
+
+        store.injectSeed(seed);
+        String migrated = Files.readString(mappingPath());
+        FileTime afterMigration = Files.getLastModifiedTime(mappingPath());
+
+        store.injectSeed(seed);
+
+        assertEquals(migrated, Files.readString(mappingPath()));
+        assertEquals(afterMigration, Files.getLastModifiedTime(mappingPath()));
+    }
+
+    // 同一个 stem 出现两种写法 → 以已归一化的键为准，旧键被清掉而不是留成第二行
+    @Test
+    void testStemKeyWinsOverLegacyKey() throws IOException {
+        writeFile("sodium.json=from_legacy\nsodium=from_stem\n");
+        MappingsStore store = store();
+
+        store.injectSeed(Map.of("sodium", "from_stem"));
+
+        assertEquals("sodium=from_stem\n", Files.readString(mappingPath()));
+        assertEquals(1L, countKeyLines("sodium"));
+        assertEquals(Optional.of("from_stem"), store.load().lookup("sodium"));
+    }
+
+    // 原子替换的副产物：落点目录里只该有 mappings.txt，临时文件不能留下
+    @Test
+    void testMigrationLeavesNoTempFileBehind() throws IOException {
+        writeFile("yacl.json5=yet_another_config_lib_v3\n");
+
+        store().injectSeed(Map.of("yacl", "yet_another_config_lib_v3"));
+
+        try (var entries = Files.list(mappingPath().getParent())) {
+            assertEquals(List.of("mappings.txt"), entries.map(p -> p.getFileName().toString()).sorted().toList());
+        }
     }
 
     // ---------- 读写边界 ----------
