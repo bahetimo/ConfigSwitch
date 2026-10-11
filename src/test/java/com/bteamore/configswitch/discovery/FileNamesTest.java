@@ -32,4 +32,29 @@ public class FileNamesTest {
     void testStemKeepsOriginalCase() {
         assertEquals("Sodium-Options", FileNames.stemOf("Sodium-Options.JSON"));
     }
+
+    // ---------- 尾斜杠：目录名角色 ----------
+
+    // 同名输入的三种形态：目录名（尾斜杠）与无扩展名文件都原样返回，带扩展名的剥掉扩展名
+    @Test
+    void testTrailingSlashMeansDirectoryName() {
+        assertEquals("jei", FileNames.stemOf("jei/"));
+        assertEquals("jei", FileNames.stemOf("jei"));
+        assertEquals("a", FileNames.stemOf("a.b"));
+    }
+
+    // 目录名里的点号不是扩展名：config.json/ 就是 config.json，大小写也原样
+    @Test
+    void testDirectoryNameKeepsDotsAndCase() {
+        assertEquals("config.json", FileNames.stemOf("config.json/"));
+        assertEquals("sodium-extra.v2", FileNames.stemOf("sodium-extra.v2/"));
+        assertEquals("NoChatReports", FileNames.stemOf("NoChatReports/"));
+    }
+
+    // 空串与纯斜杠：都不该抛，落回空串
+    @Test
+    void testEmptyAndSlashOnlyFallBackToEmpty() {
+        assertEquals("", FileNames.stemOf(""));
+        assertEquals("", FileNames.stemOf("/"));
+    }
 }

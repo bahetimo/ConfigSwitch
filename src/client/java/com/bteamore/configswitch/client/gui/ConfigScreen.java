@@ -312,7 +312,14 @@ public class ConfigScreen extends Screen {
         return this.allGroups.stream()
                 .filter(group -> group.getModId().equals(ModGroup.UNCATEGORIZED_ID))
                 .flatMap(group -> group.getFiles().stream()
-                        .map(path -> path.getFileName().toString()))
+                        .map(path -> {
+                            String[] split = relativeOf(path).split("/");
+                            if (split.length > 1) {
+                                return split[0]+"/";
+                            }
+                            return split[0];
+                        }))
+                .distinct()
                 .toList();
     }
 
