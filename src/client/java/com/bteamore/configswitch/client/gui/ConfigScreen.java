@@ -33,6 +33,7 @@ public class ConfigScreen extends Screen {
     private static final int BACKUP_BUTTON_WIDTH = 60;
     private static final int SETTINGS_BUTTON_WIDTH = 60;
     private static final int SETTINGS_BUTTON_Y = 10;
+    private static final int HELP_BUTTON_SIZE = 10;
     private static final int BOTTOM_MARGIN = 12;
     private static final int TITLE_Y = 15;
     private static final int MARGIN_X = 20;
@@ -245,7 +246,33 @@ public class ConfigScreen extends Screen {
         if (this.visibleGroups().isEmpty()){
             context.drawCenteredTextWithShadow(this.textRenderer, Text.translatable("configswitch.search.no_match"), this.width / 2, this.listWidget.getY() + this.listWidget.getHeight() / 2, 0xA0A0A0);
         }
+        this.renderHelpIcon(context, mouseX, mouseY);
     }
+
+    // 左上角：帮助图标（自绘 tooltip 风格外观，不参与点击交互；悬停显示 tips）
+    private void renderHelpIcon(DrawContext context, int mouseX, int mouseY) {
+        int x = MARGIN_X;
+        int y = SETTINGS_BUTTON_Y + 8;
+        int s = HELP_BUTTON_SIZE;
+        // 原版 tooltip 背景：深色填充 + 亮暗渐变紫边框
+        context.fill(x, y, x + s, y + s, 0xF0100010);
+        context.fill(x, y, x + s, y + 1, 0x505000FF);
+        context.fill(x, y + s - 1, x + s, y + s, 0x5028007F);
+        context.fill(x, y + 1, x + 1, y + s - 1, 0x505000FF);
+        context.fill(x + s - 1, y + 1, x + s, y + s - 1, 0x5028007F);
+        context.drawCenteredTextWithShadow(this.textRenderer, "?", x + s / 2, y + (s - 8) / 2, 0xFFFFFF);
+        // 悬停时用原版 tooltip 渲染显示说明书
+        if (mouseX >= x && mouseX < x + s && mouseY >= y && mouseY < y + s) {
+            context.drawTooltip(this.textRenderer, List.of(
+                    Text.translatable("configswitch.help.line.push"),
+                    Text.translatable("configswitch.help.line.fetch"),
+                    Text.translatable("configswitch.help.line.newpack"),
+                    Text.translatable("configswitch.help.line.order"),
+                    Text.translatable("configswitch.help.line.backup")
+                    ), mouseX, mouseY);
+        }
+    }
+
     @Override
     public void close() {
         this.client.setScreen(this.parentscreen);

@@ -17,6 +17,11 @@
   "configswitch.label.files_more": "… 还有 %d 个文件",
   "configswitch.label.list_sep": "、",
   "configswitch.label.file_count": "%d 个文件",
+  "configswitch.help.line.push": "Push —— 把当前包的配置存进全局仓库",
+  "configswitch.help.line.fetch": "Fetch —— 把全局仓库的配置加载进当前包",
+  "configswitch.help.line.backup": "Backup —— 从快照恢复配置（恢复过程也会备份当前文件）",
+  "configswitch.help.line.newpack": "新包：先运行一次（让模组写入文件），然后 Fetch",
+  "configswitch.help.line.order": "调整设置，然后 Push。不要反过来 —— 先 Push 会覆盖默认设置",
 
   "configswitch.screen.backup": "备份管理",
   "configswitch.button.source_global": "全局备份",
