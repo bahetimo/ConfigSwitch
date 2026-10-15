@@ -109,6 +109,21 @@ Change where the repository lives, and how many backups to keep.
   WTHIT keeps its files as `waila_*`. Those can't be matched automatically
 - **Classify only offers mods you have installed** — a config for a mod you
   haven't installed yet can't be aimed at it in advance
+- Configs in a **subfolder** are picked up by their names too. A config whose
+  name gives nothing away may be left out — and its folder may not show up at all
+- A mod whose id carries a suffix isn't matched on its own — a file named
+  `e4mc.toml` belongs to a mod whose id is `e4mc_minecraft`. You can still pick
+  that mod by hand in **Classify**
+- A subfolder is treated as **one item**. If it really holds configs for two
+  different mods, there is no way to say so
+- A flat file and a folder sharing a name are treated as the same thing —
+  `jei.json` and `jei/` end up pointing at the same mod
+- **Caxton** can leave the search box in the **Classify** screen blank. It still
+  works — you just can't see what you typed
+- **Classified something wrongly?** There is no undo in the UI yet. Edit
+  `%APPDATA%\.minecraft\configswitch\mappings.txt` and delete that line — the
+  file goes back to *Uncategorized* on the next launch. The **built-in** entries
+  come back if you delete them, so only remove the ones you added yourself
 - Windows only for now
 
 ## Reporting issues
