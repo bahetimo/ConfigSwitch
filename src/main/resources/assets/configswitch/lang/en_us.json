@@ -1,6 +1,7 @@
 {
   "category.configswitch": "ConfigSwitch",
   "key.configswitch.open": "Open ConfigSwitch",
+  "configswitch.button.open": "Open ConfigSwitch",
 
   "configswitch.screen.config": "Config Switch",
   "configswitch.button.fetch": "Fetch",

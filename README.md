@@ -18,11 +18,16 @@ Your configs follow you, not the pack.
 
 ## How to use it
 
-1. Press **H** in-game
-2. Tick the mods you want to sync
-3. Hit **Push** to save them, or **Fetch** to load them
+Open ConfigSwitch from the **title screen** — there's an icon button just above
+the language button. With **Mod Menu** installed you'll find it there too.
+
+1. Tick the mods you want to sync
+2. Hit **Push** to save them, or **Fetch** to load them
 
 That's it — no config files to edit by hand.
+
+> The old in-game keybind is still there but **no longer bound to anything** —
+> bind it yourself under *Options → Controls* if you want it.
 
 ## Features
 

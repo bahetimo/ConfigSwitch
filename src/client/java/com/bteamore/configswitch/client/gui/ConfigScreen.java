@@ -52,6 +52,7 @@ public class ConfigScreen extends Screen {
     private ClickableWidget doneButton;
     private ClickableWidget backupButton;
     private ClickableWidget settingsButton;
+    private Screen parentscreen;
 
     private List<ModGroup> allGroups;
     private ModGroup residueGroup;
@@ -67,8 +68,9 @@ public class ConfigScreen extends Screen {
     private final ConfigPathResolver resolver = new ConfigPathResolver(gameDir);
     private SyncReport lastReport;
 
-    public ConfigScreen() {
+    public ConfigScreen(Screen parent) {
         super(Text.translatable("configswitch.screen.config"));
+        this.parentscreen = parent;
     }
 
     @Override
@@ -243,6 +245,10 @@ public class ConfigScreen extends Screen {
         if (this.visibleGroups().isEmpty()){
             context.drawCenteredTextWithShadow(this.textRenderer, Text.translatable("configswitch.search.no_match"), this.width / 2, this.listWidget.getY() + this.listWidget.getHeight() / 2, 0xA0A0A0);
         }
+    }
+    @Override
+    public void close() {
+        this.client.setScreen(this.parentscreen);
     }
 
     private List<ModGroup> visibleGroups() {
