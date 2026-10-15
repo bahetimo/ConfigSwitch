@@ -70,6 +70,7 @@
   "configswitch.message.suffix.skipped": ", %d skipped",
   "configswitch.message.suffix.restart": "; some configs need a game restart",
   "configswitch.message.nothing": "Nothing to sync",
+  "configswitch.message.repo_empty": "No configs in the repository yet — Push first.",
   "configswitch.message.no_selection": "No mods selected!",
   "configswitch.message.state": "State: %s",
   "configswitch.message.save_failed": "Save failed",

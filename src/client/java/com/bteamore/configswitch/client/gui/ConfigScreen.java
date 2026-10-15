@@ -211,6 +211,9 @@ public class ConfigScreen extends Screen {
         }
         if (success == 0 && failed == 0) {
             // 全部跳过
+            if (name.equals("fetch")) {
+                return Text.translatable("configswitch.message.repo_empty");
+            }
             return Text.translatable("configswitch.message.nothing")
                     .append(Text.translatable("configswitch.message.suffix.skipped", skipped));
         }

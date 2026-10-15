@@ -70,6 +70,7 @@
   "configswitch.message.suffix.skipped": "，%d 个跳过",
   "configswitch.message.suffix.restart": "；部分配置需重启游戏生效",
   "configswitch.message.nothing": "没有可同步的内容",
+  "configswitch.message.repo_empty": "仓库里还没有配置 —— 先 Push 一次",
   "configswitch.message.no_selection": "没有选择任何模组!",
   "configswitch.message.state": "当前状态：%s",
   "configswitch.message.save_failed": "保存失败",
