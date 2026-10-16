@@ -9,6 +9,8 @@
   "configswitch.button.backup": "备份",
   "configswitch.button.settings": "设置",
   "configswitch.button.done": "完成",
+  "configswitch.button.export": "导出",
+  "configswitch.button.import": "导入",
   "configswitch.button.select_all": "全选",
   "configswitch.button.select_none": "全不选",
   "configswitch.button.invert": "反选",
@@ -36,6 +38,7 @@
   "configswitch.screen.settings": "设置",
   "configswitch.label.repo_root": "仓库根路径",
   "configswitch.label.max_backups": "保留备份数量",
+  "configswitch.label.repo_export": "导出仓库",
   "configswitch.button.save": "保存",
   "configswitch.button.reset": "重置配置",
   "configswitch.confirm.discard.title": "放弃修改？",
@@ -89,5 +92,20 @@
   "configswitch.group.uncategorized": "未分类",
   "configswitch.group.vanilla": "原版",
 
-  "configswitch.label.residue_hidden": "已隐藏 %d 个残留配置"
+  "configswitch.label.residue_hidden": "已隐藏 %d 个残留配置",
+
+  "configswitch.button.cancel_import": "取消导入",
+  "configswitch.button.close": "关闭",
+  "configswitch.button.open_folder": "打开文件夹",
+  "configswitch.transfer.hint_drop": "把导出的 .zip 拖到这里",
+  "configswitch.transfer.reading": "正在读取 %s…",
+  "configswitch.transfer.nothing_dropped": "没有拖入文件",
+  "configswitch.transfer.not_a_file": "只能导入文件，不支持文件夹",
+  "configswitch.transfer.wrong_extension": "只支持 .zip 包",
+  "configswitch.transfer.multiple_files": "一次只能拖入一个包",
+  "configswitch.transfer.import_done": "导入完成",
+  "configswitch.transfer.export_done": "导出完成",
+  "configswitch.transfer.not_a_package": "不是 ConfigSwitch 导出的包",
+  "configswitch.transfer.corrupted": "包内容已损坏",
+  "configswitch.transfer.io_failed": "操作失败 —— 请查看日志"
 }

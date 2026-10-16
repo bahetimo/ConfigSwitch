@@ -156,7 +156,7 @@ public class ConfigScreen extends Screen {
 
         // 右上角：设置入口
         this.settingsButton = ButtonWidget.builder(Text.translatable("configswitch.button.settings"),
-                        btn -> MinecraftClient.getInstance().setScreen(new SettingsScreen(Text.translatable("configswitch.screen.settings"), this)))
+                        btn -> MinecraftClient.getInstance().setScreen(new SettingsScreen(Text.translatable("configswitch.screen.settings"), this, this.stateManager, this::onClassifyCommitted)))
                 .dimensions(this.width - MARGIN_X - SETTINGS_BUTTON_WIDTH, SETTINGS_BUTTON_Y, SETTINGS_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
 

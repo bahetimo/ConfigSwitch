@@ -23,6 +23,12 @@ public final class RepoPaths {
     public static Path backupDir() {
         return repoRoot().resolve("backup");
     }
+    public static Path exportDir() {
+        return repoRoot().resolve("export");
+    }
+    public static Path importBackupDir() {
+        return repoRoot().resolve("import-backup");
+    }
 
     public static Path localBackupDir(Path gameDir) {
         return gameDir.resolve("config").resolve("switch").resolve("backup");

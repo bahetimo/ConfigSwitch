@@ -9,6 +9,8 @@
   "configswitch.button.backup": "Backup",
   "configswitch.button.settings": "Settings",
   "configswitch.button.done": "Done",
+  "configswitch.button.export": "Export",
+  "configswitch.button.import": "Import",
   "configswitch.button.select_all": "Select All",
   "configswitch.button.select_none": "Clear",
   "configswitch.button.invert": "Invert",
@@ -36,6 +38,7 @@
   "configswitch.screen.settings": "Settings",
   "configswitch.label.repo_root": "Repository root",
   "configswitch.label.max_backups": "Backups to keep",
+  "configswitch.label.repo_export": "Export repository",
   "configswitch.button.save": "Save",
   "configswitch.button.reset": "Reset",
   "configswitch.confirm.discard.title": "Discard changes?",
@@ -89,5 +92,20 @@
   "configswitch.group.uncategorized": "Uncategorized",
   "configswitch.group.vanilla": "Vanilla",
 
-  "configswitch.label.residue_hidden": "%d leftover configs hidden"
+  "configswitch.label.residue_hidden": "%d leftover configs hidden",
+
+  "configswitch.button.cancel_import": "Cancel import",
+  "configswitch.button.close": "Close",
+  "configswitch.button.open_folder": "Open folder",
+  "configswitch.transfer.hint_drop": "Drop the exported .zip here",
+  "configswitch.transfer.reading": "Reading %s…",
+  "configswitch.transfer.nothing_dropped": "No file was dropped",
+  "configswitch.transfer.not_a_file": "Only files can be imported, not folders",
+  "configswitch.transfer.wrong_extension": "Only .zip packages are supported",
+  "configswitch.transfer.multiple_files": "Drop a single package at a time",
+  "configswitch.transfer.import_done": "Import complete",
+  "configswitch.transfer.export_done": "Export complete",
+  "configswitch.transfer.not_a_package": "Not a ConfigSwitch package",
+  "configswitch.transfer.corrupted": "The package is damaged",
+  "configswitch.transfer.io_failed": "Operation failed — check the log"
 }
