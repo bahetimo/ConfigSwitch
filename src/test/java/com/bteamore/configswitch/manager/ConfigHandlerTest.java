@@ -5,6 +5,7 @@ import com.bteamore.configswitch.core.PackReport;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
+import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.util.Time;
 import com.google.gson.Gson;
@@ -195,6 +196,20 @@ public class ConfigHandlerTest {
         // 两个文件同属一个 mod：SKIPPED 不掩盖 SUCCESS，聚合为单条 SUCCESS
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
+    }
+
+    // 原版配置走跳过 hash 与回写登记的分支：同步行为与普通 mod 一致
+    @Test
+    void testFetchSyncsVanillaConfig() throws IOException {
+        ConfigPaths paths = newPaths(ModGroup.VANILLA_ID, "options.txt");
+        write(paths.global(), "new");
+        write(paths.active(), "old");
+
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(paths));
+
+        assertEquals("new", Files.readString(paths.active()));
+        assertEquals("old", Files.readString(paths.backup()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(ModGroup.VANILLA_ID));
     }
 
     // ---------- SyncReport 按 modId 聚合 ----------
