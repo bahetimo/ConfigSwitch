@@ -31,6 +31,12 @@ That's it — no config files to edit by hand.
 
 ## Features
 
+### A `?` in the corner explains the two buttons
+
+**Push** and **Fetch** aren't words everyone knows. There's a small **`?`** at the
+top left of the config screen — hover it for what each button does, and for the
+order that matters when you switch packs.
+
 ### Sync by mod, not by file
 
 The list groups configs **by mod**, so you tick *sodium* — not six separate `.json`
@@ -85,6 +91,19 @@ The **Backup** screen lists past snapshots from both sides. Restoring one is its
 backed up first, so **a restore can be undone**.
 
 ![Backup screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/main/res/BackupScreen.png)
+
+### Take the whole repository with you
+
+Switch computers without copying `%APPDATA%` by hand.
+
+- **Export** packs the repository into a zip in `configswitch/export/`. When it's
+  done you can **open that folder** straight away.
+- **Import**: press *Import* and **drag a zip into the window**. Your current
+  repository is **backed up first**, and you get a button to **open the backup
+  folder**.
+- What travels is **the configs themselves plus the decisions you made by hand**.
+  ConfigSwitch's own settings don't — there are only two, and setting them again
+  is faster than importing them.
 
 ### Configurable
 
@@ -145,7 +164,5 @@ it's a one-off and does not persist.
 MIT — see [LICENSE.txt](https://github.com/bahetimo/ConfigSwitch/blob/main/LICENSE.txt)
 
 ## For contributors
-
-- **Release process** — see [RELEASE.md](RELEASE.md)
 
 The screenshots live in [`res/`](res/) so they stay out of the built jar.

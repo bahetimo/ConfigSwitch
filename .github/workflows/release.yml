@@ -60,6 +60,36 @@ jobs:
             echo "::error::版本号为空（Release 的 tag 名，或 workflow_dispatch 的 version 输入）"
             exit 1
           fi
+
+          # ── 版本类型门禁 ─────────────────────────────────────────────
+          # 平台上的 version-type 是【从版本号推导】的（D015）：含 alpha → alpha，含 beta → beta，
+          # 都不含 → release。⚠️ 所以拼错一个字不会有任何报错 —— 但平台上会挂出一个
+          # 【假的正式版】✗ 而且【撤不回来】✗。这里把"能推导出已知类型"变成一道门禁。
+          #
+          # prerelease 段 = 版本号里第一个 '-' 之后、第一个 '+' 之前的那一段
+          #   1.0.0-beta.1+1.21.1  →  beta.1  ✓
+          #   1.0.0-beat.1+1.21.1  →  beat.1  ✗ 挡住
+          #   1.0.0+1.21.1         →  （空）  ✓ 那是正式版
+          pre=""
+          case "$V" in
+            *-*) pre="${V#*-}" ;;
+          esac
+          pre="${pre%%+*}"
+
+          if [ -z "$pre" ]; then
+            echo "→ 版本类型：release（没有 prerelease 段）"
+          else
+            case "$pre" in
+              alpha.*|beta.*) echo "→ 版本类型：${pre%%.*}" ;;
+              *)
+                echo "::error::认不出的 prerelease 段「$pre」—— 只接受 alpha.N 或 beta.N"
+                echo "::error::⚠️ 拼错（如 beat.1）不会报错，但平台会把它当成【正式版】发出去，且撤不回来"
+                echo "::error::历史 tag「1.0.0-alpha+1.21.1」也不符合（它没有 .N）—— 但它已发布，不必重发"
+                exit 1
+                ;;
+            esac
+          fi
+
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "版本号：$V"
 
@@ -136,26 +166,25 @@ jobs:
 
           # version-type 故意不写：默认就会从 version 里的 -alpha / -beta 后缀推导
 
-  # Modrinth项目审核通过后启用
-  # modrinth:
-  #   name: Publish to Modrinth
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Download release bundle
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: release-bundle
-  #
-  #     - name: Publish
-  #       uses: Kir-Antipov/mc-publish@v3.3
-  #       with:
-  #         modrinth-id: 0000000
-  #         modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-  #
-  #         files: build/libs/!(*-@(dev|sources|javadoc)).jar
-  #         version: ${{ needs.build.outputs.version }}
-  #         changelog-file: changelog.md
-  #
-  #         game-versions: 1.21.1
-  #         loaders: fabric
+  modrinth:
+    name: Publish to Modrinth
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+
+      - name: Publish
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: dsRF0VCO
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+
+          files: build/libs/!(*-@(dev|sources|javadoc)).jar
+          version: ${{ needs.build.outputs.version }}
+          changelog-file: changelog.md
+
+          game-versions: 1.21.1
+          loaders: fabric
