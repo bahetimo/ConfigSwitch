@@ -1,6 +1,8 @@
 package com.bteamore.configswitch.core;
 
+import com.bteamore.configswitch.core.actions.ExportAction;
 import com.bteamore.configswitch.core.actions.FetchAction;
+import com.bteamore.configswitch.core.actions.ImportAction;
 import com.bteamore.configswitch.core.actions.PushAction;
 import com.bteamore.configswitch.core.actions.RestoreAction;
 import com.bteamore.configswitch.util.Log;
@@ -36,6 +38,13 @@ public class ConfigStateMachine {
         register(ConfigState.IDLE,ConfigEvent.RESTORE,ConfigState.RESTORING,new RestoreAction());
         register(ConfigState.RESTORING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> null);
 
+        // import
+        register(ConfigState.IDLE,ConfigEvent.IMPORT,ConfigState.IMPORTING,new ImportAction());
+        register(ConfigState.IMPORTING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> null);
+
+        // export
+        register(ConfigState.IDLE,ConfigEvent.EXPORT,ConfigState.EXPORTING,new ExportAction());
+        register(ConfigState.EXPORTING,ConfigEvent.DONE,ConfigState.IDLE,(from,to,e,c) -> null);
     }
 
     protected void register(ConfigState fromState, ConfigEvent event, ConfigState toState, Action<ConfigState, ConfigEvent> action) {

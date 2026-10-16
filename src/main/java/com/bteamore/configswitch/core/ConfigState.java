@@ -5,4 +5,6 @@ public enum ConfigState {
     FETCHING,
     PUSHING,
     RESTORING,
+    EXPORTING,
+    IMPORTING,
 }

@@ -1,8 +1,8 @@
 package com.bteamore.configswitch.manager;
 
-import com.bteamore.configswitch.core.SyncOutcome;
-import com.bteamore.configswitch.core.IConfigFileService;
-import com.bteamore.configswitch.core.SyncReport;
+import com.bteamore.configswitch.config.PackManifest;
+import com.bteamore.configswitch.config.RepoPacker;
+import com.bteamore.configswitch.core.*;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
@@ -148,6 +148,42 @@ public class ConfigHandler implements IConfigFileService {
         SyncReport report = new SyncReport(results);
         Log.info("Restore finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));
         return report;
+    }
+
+    @Override
+    public PackReport exportRepo(Path sourceRoot, Path targetRoot, String version) {
+        try {
+            Files.createDirectories(targetRoot);
+        } catch (IOException e) {
+            Log.error("Failed to create target root directory {}", targetRoot, e);
+            return new PackReport(PackReport.outcome.IO_FAILED, 0, null);
+        }
+        Path target = targetRoot.resolve(Time.timeString() + "-export.zip");
+        PackManifest manifest = new PackManifest(PackManifest.DEFAULT_FORMAT, target.toString(), version);
+
+        return RepoPacker.pack(sourceRoot, target, manifest);
+    }
+
+    @Override
+    public PackReport importRepo(Path sourceRoot, Path input, Path backupRoot) {
+        // 导入前备份现有的repo
+        String newTimestamp = Time.timeString();
+        try {
+            Files.createDirectories(backupRoot.resolve(newTimestamp));
+        } catch (IOException e) {
+            Log.error("Failed to create backup root directory {}", backupRoot, e);
+            return new PackReport(PackReport.outcome.IO_FAILED, 0, null);
+        }
+        Path backup = backupRoot.resolve(newTimestamp).resolve("backup.zip");
+        PackManifest manifest = new PackManifest(PackManifest.DEFAULT_FORMAT, backup.toString(), "backup");
+
+        PackReport packed = RepoPacker.pack(sourceRoot, backup, manifest);
+        if (packed.outcome() != PackReport.outcome.SUCCESS) {
+            Log.warn("Failed to backup existing repo before import");
+            return packed;
+        }
+
+        return RepoPacker.unpack(sourceRoot, input);
     }
 
     private void priorityMerge(Map<String, SyncOutcome> result, String modId, SyncOutcome outcome) {

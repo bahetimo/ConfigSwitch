@@ -1,18 +1,26 @@
 package com.bteamore.configswitch.manager;
 
+import com.bteamore.configswitch.config.PackManifest;
+import com.bteamore.configswitch.core.PackReport;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.util.Time;
+import com.google.gson.Gson;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -730,5 +738,169 @@ public class ConfigHandlerTest {
         new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
 
         assertFalse(Files.exists(oldest));
+    }
+
+    // ---------- exportRepo / importRepo ----------
+
+    // 造一个可打包的仓库：RepoPacker 只收 global 目录与 mappings.txt，缺 mappings.txt 会打包失败
+    private Path newRepo(String name) throws IOException {
+        Path repo = Files.createDirectories(tempDir.resolve(name));
+        Files.writeString(repo.resolve("mappings.txt"), "M");
+        return repo;
+    }
+
+    // 与 RepoPacker.pack 写出形态一致的 manifest
+    private static String exportedManifest() {
+        return "{\"format\":" + PackManifest.DEFAULT_FORMAT
+                + ",\"exportedAt\":\"2026-01-01T00:00:00Z\",\"context\":\"1.0.0\"}";
+    }
+
+    // 手搓一个合法包：manifest + 条目（名称、内容成对给出）
+    private Path zipOf(String... nameAndContent) throws IOException {
+        Path zip = Files.createTempFile(tempDir, "fixture-", ".zip");
+        try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zip))) {
+            zos.putNextEntry(new ZipEntry(PackManifest.ENTRY_NAME));
+            zos.write(exportedManifest().getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+            for (int i = 0; i < nameAndContent.length; i += 2) {
+                zos.putNextEntry(new ZipEntry(nameAndContent[i]));
+                zos.write(nameAndContent[i + 1].getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+        }
+        return zip;
+    }
+
+    // 读包里的一个条目，用来校验 manifest 与备份内容
+    private static String entryContent(Path zip, String name) throws IOException {
+        try (ZipFile zipFile = new ZipFile(zip.toFile())) {
+            ZipEntry entry = zipFile.getEntry(name);
+            assertNotNull(entry, "包里缺少条目: " + name);
+            try (InputStream in = zipFile.getInputStream(entry)) {
+                return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        }
+    }
+
+    // importRepo 新建的时间戳备份目录（备份根下应只有一个）
+    private Path importBackupDir(Path backupRoot) throws IOException {
+        List<Path> dirs = timestampDirs(backupRoot);
+        assertEquals(1, dirs.size(), "导入应新建且只新建一个备份目录");
+        return dirs.get(0);
+    }
+
+    // 导出目录不存在时自动创建；包名带时间戳，manifest 记下版本与导出位置
+    @Test
+    void testExportCreatesTargetRootAndWritesPackage() throws IOException {
+        Path repo = newRepo("repo");
+        write(repo.resolve("global/a.json"), "A");
+        Path exports = tempDir.resolve("exports"); // 不存在，由 exportRepo 创建
+
+        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).exportRepo(repo, exports, "1.2.3");
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        // 目录条目不计入文件数：只有 global/a.json 与 mappings.txt
+        assertEquals(2, report.fileCount());
+        assertTrue(Files.isDirectory(exports), "导出目录应被自动创建");
+        assertEquals(exports, report.location().getParent());
+
+        String fileName = report.location().getFileName().toString();
+        assertTrue(fileName.endsWith("-export.zip"), fileName);
+        String timestamp = fileName.substring(0, fileName.length() - "-export.zip".length());
+        assertTrue(Time.BACKUP_FILE_PATTERN.matcher(timestamp).matches(), "包名应以时间戳开头: " + fileName);
+
+        assertEquals("A", entryContent(report.location(), "global/a.json"));
+        assertEquals("M", entryContent(report.location(), "mappings.txt"));
+        PackManifest manifest = new Gson().fromJson(entryContent(report.location(), PackManifest.ENTRY_NAME), PackManifest.class);
+        assertEquals(PackManifest.DEFAULT_FORMAT, manifest.format());
+        assertEquals("1.2.3", manifest.context());
+        assertEquals(report.location().toString(), manifest.exportedAt());
+    }
+
+    // 导出目录建不出来（父级被普通文件占位）→ IO_FAILED，location 为 null，占位文件不动
+    @Test
+    void testExportFailsWhenTargetRootCannotBeCreated() throws IOException {
+        Path repo = newRepo("repo");
+        Path blocked = tempDir.resolve("blocked");
+        Files.writeString(blocked, "not a directory");
+
+        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).exportRepo(repo, blocked.resolve("exports"), "1.2.3");
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
+        assertEquals(0, report.fileCount());
+        assertNull(report.location());
+        assertEquals("not a directory", Files.readString(blocked));
+    }
+
+    // 导入 = 先备份现有仓库、再解包：备份根与其下的时间戳目录都由 importRepo 创建，调用方只传路径
+    @Test
+    void testImportBacksUpRepoBeforeUnpacking() throws IOException {
+        Path repo = newRepo("repo");
+        write(repo.resolve("global/old.json"), "OLD");
+        Path zip = zipOf("global/new.json", "NEW", "mappings.txt", "NEW");
+        Path backupRoot = tempDir.resolve("import-backups"); // 不存在，由 importRepo 创建
+
+        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, backupRoot);
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome(),
+                "备份目录 backupRoot/<时间戳> 需要由 importRepo 创建，否则打包备份会因父目录不存在而失败");
+        assertEquals(2, report.fileCount());
+        assertEquals(zip, report.location());
+        // 包内容落地
+        assertEquals("NEW", Files.readString(repo.resolve("global/new.json")));
+        assertEquals("NEW", Files.readString(repo.resolve("mappings.txt")));
+        // 备份里是导入前的旧内容，不是导入后的
+        Path backupZip = importBackupDir(backupRoot).resolve("backup.zip");
+        assertEquals("OLD", entryContent(backupZip, "global/old.json"));
+        assertEquals("M", entryContent(backupZip, "mappings.txt"));
+    }
+
+    // 导入只覆盖包里出现的条目：仓库里不在包中的文件保留
+    @Test
+    void testImportKeepsRepoFilesNotInPackage() throws IOException {
+        Path repo = newRepo("repo");
+        write(repo.resolve("global/untouched.json"), "KEEP");
+        Path zip = zipOf("mappings.txt", "NEW");
+
+        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome(),
+                "备份目录 backupRoot/<时间戳> 需要由 importRepo 创建，否则导入永远停在备份失败上");
+        assertEquals("NEW", Files.readString(repo.resolve("mappings.txt")));
+        assertEquals("KEEP", Files.readString(repo.resolve("global/untouched.json")));
+    }
+
+    // 备份根建不出来 → IO_FAILED，location 为 null，仓库保持原状
+    @Test
+    void testImportFailsWhenBackupRootCannotBeCreated() throws IOException {
+        Path repo = newRepo("repo");
+        write(repo.resolve("global/keep.json"), "KEEP");
+        Path zip = zipOf("global/new.json", "NEW");
+        Path blocked = tempDir.resolve("blocked");
+        Files.writeString(blocked, "not a directory");
+
+        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, blocked.resolve("backups"));
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
+        assertEquals(0, report.fileCount());
+        assertNull(report.location());
+        // 备份都没做成，不能动仓库
+        assertEquals("KEEP", Files.readString(repo.resolve("global/keep.json")));
+        assertFalse(Files.exists(repo.resolve("global/new.json")));
+    }
+
+    // 备份失败就不导入：没有可回退的包时不能动仓库
+    @Test
+    void testImportAbortsWhenBackupFails() throws IOException {
+        // 仓库里没有 mappings.txt → 备份打包失败
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));
+        write(repo.resolve("global/keep.json"), "KEEP");
+        Path zip = zipOf("global/new.json", "NEW");
+
+        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
+        assertFalse(Files.exists(repo.resolve("global/new.json")), "备份失败后不该继续导入");
+        assertEquals("KEEP", Files.readString(repo.resolve("global/keep.json")));
     }
 }

@@ -4,5 +4,7 @@ public enum ConfigEvent {
     PUSH,
     FETCH,
     RESTORE,
+    EXPORT,
+    IMPORT,
     DONE
 }
