@@ -166,3 +166,8 @@ MIT — see [LICENSE.txt](https://github.com/bahetimo/ConfigSwitch/blob/main/LIC
 ## For contributors
 
 The screenshots live in [`res/`](res/) so they stay out of the built jar.
+
+UI text lives in `src/main/resources/assets/configswitch/lang/`. CI checks that the
+keys used in code and the keys in both lang files match exactly — the same check
+runs locally with `python tools/check_i18n.py`. If a key is built dynamically,
+declare it on the line above with `// i18n-dynamic: ...` (see `ConfigScreen`).

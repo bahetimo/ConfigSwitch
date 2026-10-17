@@ -22,3 +22,6 @@ run
 
 # Log files
 logs
+
+# Python bytecode (tools/)
+__pycache__/

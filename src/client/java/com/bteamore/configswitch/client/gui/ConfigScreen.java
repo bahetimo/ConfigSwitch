@@ -204,6 +204,7 @@ public class ConfigScreen extends Screen {
         int failed = report.count(SyncOutcome.FAILED);
         int skipped = report.count(SyncOutcome.SKIPPED);
 
+        // i18n-dynamic: configswitch.message.{push,fetch}.head
         String headKey = "configswitch.message." + name + ".head";
 
         if (report.results().isEmpty()) {
