@@ -79,7 +79,6 @@
   "configswitch.message.save_failed": "保存失败",
   "configswitch.message.saved": "保存成功，重启游戏后生效",
   "configswitch.message.reset_done": "已重置为默认值，点保存后生效",
-  "configswitch.message.reset_failed": "重置失败",
 
   "configswitch.error.path_blank": "路径不能为空",
   "configswitch.error.path_illegal": "路径包含非法字符",
