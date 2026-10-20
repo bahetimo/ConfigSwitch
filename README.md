@@ -171,3 +171,18 @@ UI text lives in `src/main/resources/assets/configswitch/lang/`. CI checks that 
 keys used in code and the keys in both lang files match exactly — the same check
 runs locally with `python tools/check_i18n.py`. If a key is built dynamically,
 declare it on the line above with `// i18n-dynamic: ...` (see `ConfigScreen`).
+
+### Commit messages
+
+Prefix each commit with one of:
+
+- `feat(scope):` — a new feature
+- `fix(scope):` — a bug fix
+- `refactor(scope):` — same behaviour, different structure
+- `chore(scope):` — build, tooling, dependencies
+- `docs(scope):` — documentation only
+- `test(scope):` — tests only
+
+`scope` names the part you touched (`gui`, `discovery`, `release`, …). Keep one
+logical change per commit — `git log`, reverts, and the release notes all get
+easier to read.
