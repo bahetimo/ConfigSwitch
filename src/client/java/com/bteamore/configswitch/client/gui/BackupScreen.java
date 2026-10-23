@@ -8,6 +8,7 @@ import com.bteamore.configswitch.discovery.BackupScanner;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.manager.StateManager;
 import com.bteamore.configswitch.repo.RepoPaths;
+import com.bteamore.configswitch.util.Log;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ConfirmScreen;
@@ -109,11 +110,11 @@ public class BackupScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
-        // 没有消息时退化为显示状态机当前状态（开发期可见）
-        Text msg = (this.message == null)
+        // 没有消息时退化为显示状态机当前状态（调试可见）
+        Text msg = (this.message == null && Log.isDebugEnabled())
                 ? Text.translatable("configswitch.message.state", stateManager.getCurrentState().name())
                 : this.message;
-        context.drawCenteredTextWithShadow(this.textRenderer, msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
+        context.drawCenteredTextWithShadow(this.textRenderer, msg==null ? Text.empty() : msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
     }
 
     @Override

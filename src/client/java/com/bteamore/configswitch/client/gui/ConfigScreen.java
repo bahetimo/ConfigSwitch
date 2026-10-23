@@ -9,6 +9,7 @@ import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.manager.StateManager;
 import com.bteamore.configswitch.repo.ConfigPathResolver;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.util.Log;
 import com.bteamore.configswitch.util.Time;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -243,10 +244,10 @@ public class ConfigScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
         // 没有消息时退化为显示状态机当前状态（开发期可见）
-        Text msg = (this.message == null)
+        Text msg = (this.message == null && Log.isDebugEnabled())
                 ? Text.translatable("configswitch.message.state", stateManager.getCurrentState().name())
                 : this.message;
-        context.drawCenteredTextWithShadow(this.textRenderer, msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
+        context.drawCenteredTextWithShadow(this.textRenderer, msg==null ? Text.empty() : msg, this.width / 2, TITLE_Y + 12, 0xAAAAAA);
         if (this.visibleGroups().isEmpty()){
             context.drawCenteredTextWithShadow(this.textRenderer, Text.translatable("configswitch.search.no_match"), this.width / 2, this.listWidget.getY() + this.listWidget.getHeight() / 2, 0xA0A0A0);
         }

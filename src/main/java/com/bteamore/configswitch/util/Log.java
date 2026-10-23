@@ -69,6 +69,9 @@ public final class Log {
         writeFile(Level.DEBUG, message, args);
     }
 
+    public static boolean isDebugEnabled() {
+        return DEBUG_ON;
+    }
     private static void writeFile(Level level, String message, Object... args) {
         if (!DEBUG_ON || LOG_PATH == null) {
             return;
