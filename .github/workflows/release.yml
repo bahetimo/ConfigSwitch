@@ -130,8 +130,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-bundle
+          # 和 build.yml 一样：sources jar 的元数据没展开，不放进发布包。
           path: |
             build/libs/*.jar
+            !build/libs/*-sources.jar
             changelog.md
           if-no-files-found: error
 

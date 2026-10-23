@@ -41,5 +41,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: configswitch-jar
-          path: build/libs/*.jar
+          # 只传主 jar。sources jar 的 fabric.mod.json 里是未展开的 ${version}
+          # （它不发给用户，但也没必要让人从 Artifacts 下到一个元数据坏的包）。
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
           if-no-files-found: error
