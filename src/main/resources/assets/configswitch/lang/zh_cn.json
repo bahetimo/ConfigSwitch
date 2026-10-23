@@ -23,7 +23,7 @@
   "configswitch.help.line.fetch": "Fetch —— 把全局仓库的配置加载进当前包",
   "configswitch.help.line.backup": "Backup —— 从快照恢复配置（恢复过程也会备份当前文件）",
   "configswitch.help.line.newpack": "新包：先运行一次（让模组写入文件），然后 Fetch",
-  "configswitch.help.line.order": "调整设置，然后 Push。不要反过来 —— 先 Push 会覆盖默认设置",
+  "configswitch.help.line.order": "调整设置，然后 Push。不要反过来 —— 先 Push 会用当前包的默认值覆盖仓库",
 
   "configswitch.screen.backup": "备份管理",
   "configswitch.button.source_global": "全局备份",
@@ -49,9 +49,9 @@
   "configswitch.confirm.reset.text": "将恢复为默认配置，确定吗？",
   "configswitch.confirm.reset.yes": "重置",
 
-  "configswitch.confirm.classifier.title": "确认归类",
-  "configswitch.confirm.classifier.text": "将写入分类好的配置。继续吗？",
-  "configswitch.confirm.classifier.yes": "归类",
+  "configswitch.confirm.classifier.title": "确认整理",
+  "configswitch.confirm.classifier.text": "将把整理结果写入磁盘，确定继续吗？",
+  "configswitch.confirm.classifier.yes": "整理",
   "configswitch.confirm.classifier.no": "取消",
   "configswitch.message.failed": "归类失败",
   "configswitch.screen.categorize": "整理未分类配置",

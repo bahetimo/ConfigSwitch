@@ -23,7 +23,7 @@
   "configswitch.help.line.fetch": "Fetch — load the repository's configs into this pack",
   "configswitch.help.line.backup": "Backup — restore configs from a snapshot (the restore is backed up too)",
   "configswitch.help.line.newpack": "New pack: launch it once (so mods write their files), then Fetch",
-  "configswitch.help.line.order": "Tune things, then Push. Not the other way — pushing first overwrites it with defaults",
+  "configswitch.help.line.order": "Tune things, then Push. Not the other way — pushing first overwrites the repository with defaults",
 
   "configswitch.screen.backup": "Backup Manager",
   "configswitch.button.source_global": "Global",
