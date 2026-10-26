@@ -5,14 +5,14 @@ name: Release
 #   补发通道 workflow_dispatch       只填版本号（changelog 从该 tag 的 message 读）
 #
 # 单个平台失败不走补发通道，用 Actions 页面原生的 "Re-run failed jobs"——
-# 前提就是下面每个平台各自是一个独立 job。
+# 前提就是下面的发布 job 是【平台 × loader】的矩阵，每一项独立。
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       version:
-        description: '要重发的版本号，不含 v 前缀，例如 1.0.0-alpha.4+1.21.1'
+        description: '要重发的版本号，不含 v 前缀，例如 1.1.0+1.21.1'
         required: true
         type: string
 
@@ -46,6 +46,10 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      # 和 build.yml 同一份检查；发布物必须先在 i18n 上一致。
+      - name: Check i18n keys
+        run: python tools/check_i18n.py
 
       # 版本号的唯一真源是 git tag。这里只做「去掉前导 v」，
       # 因为两个通道给的原始值形态不同（release 给 tag_name，dispatch 给人手填的输入）。
@@ -124,24 +128,32 @@ jobs:
           echo "changelog 前 5 行："
           head -5 changelog.md
 
-      # 发布用的 jar 就是这里构建出来的那一个——不再在本地重新构建，
+      # 发布用的 jar 就是这里构建出来的那三个——不再在本地重新构建，
       # 于是「CI 验证过的产物」和「发布出去的产物」是同一个文件。
+      # 发布包只放三份加载器 jar + changelog；common 是库，不发布。
       - name: Upload release bundle
         uses: actions/upload-artifact@v4
         with:
           name: release-bundle
-          # 和 build.yml 一样：sources jar 的元数据没展开，不放进发布包。
           path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
+            fabric/build/libs/*.jar
+            forge/build/libs/*.jar
+            neoforge/build/libs/*.jar
             changelog.md
+            !**/*-sources.jar
+            !**/*-javadoc.jar
           if-no-files-found: error
 
   curseforge:
-    name: Publish to CurseForge
+    name: Publish to CurseForge (${{ matrix.loader }})
     needs: build
     # 发布本身不需要 Windows，也不需要 JDK
     runs-on: ubuntu-latest
+    strategy:
+      # 一个 loader 失败不取消其他两个；用 Re-run failed jobs 只重跑失败项
+      fail-fast: false
+      matrix:
+        loader: [fabric, forge, neoforge]
     steps:
       - name: Download release bundle
         uses: actions/download-artifact@v4
@@ -154,24 +166,28 @@ jobs:
           curseforge-id: 1699841
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
 
-          # 只传主 jar。extglob 排除 -sources / -dev / -javadoc。
+          # 只传该 loader 的主 jar。extglob 排除 -sources / -dev / -javadoc。
           # 不能省：mc-publish 的默认值是【两行】——主 jar + 附加 jar（sources 等），
           # 一旦不写 files 就会连 sources 一起传上去。
-          files: build/libs/!(*-@(dev|sources|javadoc)).jar
-          version: ${{ needs.build.outputs.version }}
+          files: ${{ matrix.loader }}/build/libs/!(*-@(dev|sources|javadoc)).jar
+          # 平台版本带 loader：1.1.0+1.21.1-fabric 等；jar 内部版本仍是 1.1.0+1.21.1
+          version: ${{ needs.build.outputs.version }}-${{ matrix.loader }}
           changelog-file: changelog.md
 
-          # 下面两项写出来是【显式优于隐式】：它们本来有默认值（从 jar 的元数据推断）
-          # 多版本管理时会改成按分支区分，届时再收回。
+          # 显式优于隐式：这两个本来可以从 jar 元数据推断
           game-versions: 1.21.1
-          loaders: fabric
+          loaders: ${{ matrix.loader }}
 
-          # version-type 故意不写：默认就会从 version 里的 -alpha / -beta 后缀推导
+          # version-type 故意不写：默认从 version 里的 -alpha / -beta 推导；1.1.0 是 release
 
   modrinth:
-    name: Publish to Modrinth
+    name: Publish to Modrinth (${{ matrix.loader }})
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [fabric, forge, neoforge]
     steps:
       - name: Download release bundle
         uses: actions/download-artifact@v4
@@ -184,9 +200,9 @@ jobs:
           modrinth-id: dsRF0VCO
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          files: build/libs/!(*-@(dev|sources|javadoc)).jar
-          version: ${{ needs.build.outputs.version }}
+          files: ${{ matrix.loader }}/build/libs/!(*-@(dev|sources|javadoc)).jar
+          version: ${{ needs.build.outputs.version }}-${{ matrix.loader }}
           changelog-file: changelog.md
 
           game-versions: 1.21.1
-          loaders: fabric
+          loaders: ${{ matrix.loader }}

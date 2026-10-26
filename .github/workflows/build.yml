@@ -41,9 +41,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: configswitch-jar
-          # 只传主 jar。sources jar 的 fabric.mod.json 里是未展开的 ${version}
-          # （它不发给用户，但也没必要让人从 Artifacts 下到一个元数据坏的包）。
+          # 多模块：产物在各自的 build/libs。不要用 */build/libs（会把 buildSrc.jar 带进来）。
+          # common 是库 jar，留在这里方便排查；发布包（release.yml）只要三份加载器 jar。
           path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
+            common/build/libs/*.jar
+            fabric/build/libs/*.jar
+            forge/build/libs/*.jar
+            neoforge/build/libs/*.jar
+            !**/*-sources.jar
+            !**/*-javadoc.jar
           if-no-files-found: error

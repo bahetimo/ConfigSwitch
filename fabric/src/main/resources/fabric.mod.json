@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${description}",
+  "authors": ["${mod_author}"],
+  "license": "${license}",
+  "environment": "client",
+  "icon": "assets/configswitch/icon.png",
+  "entrypoints": {
+    "main": ["com.bteamore.configswitch.fabric.ConfigSwitchFabric"],
+    "client": ["com.bteamore.configswitch.fabric.ConfigSwitchFabricClient"],
+    "modmenu": ["com.bteamore.configswitch.fabric.ConfigswitchFabricModmenu"]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_min_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "java": ">=${java_version}"
+  }
+}

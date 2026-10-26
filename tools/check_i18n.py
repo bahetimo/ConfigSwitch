@@ -28,8 +28,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LANG_DIR = ROOT / "src/main/resources/assets/configswitch/lang"
-SOURCE_DIRS = [ROOT / "src/main/java", ROOT / "src/client/java"]
+LANG_DIR = ROOT / "common/src/main/resources/assets/configswitch/lang"
+SOURCE_DIRS = [ROOT / "common/src/main/java"]
 
 # 命名约定里第二段的白名单（见 docs/i18n.md「命名约定」）。
 # 不能只用 "configswitch." 当判据 —— logger 名、系统属性、configswitchcustom
