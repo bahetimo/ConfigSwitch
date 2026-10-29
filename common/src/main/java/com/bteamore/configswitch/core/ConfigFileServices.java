@@ -1,5 +1,7 @@
 package com.bteamore.configswitch.core;
 
+import java.util.Objects;
+
 public final class ConfigFileServices {
     private static IConfigFileService service;
 
@@ -7,12 +9,19 @@ public final class ConfigFileServices {
     }
 
     public static void register(IConfigFileService service) {
-        if (ConfigFileServices.service == null) {
-            ConfigFileServices.service = service;
+        Objects.requireNonNull(service, "service");
+        if (ConfigFileServices.service != null) {
+            throw new IllegalStateException("Service already registered");
         }
+        ConfigFileServices.service = service;
     }
 
     public static IConfigFileService get() {
-        return service;
+        IConfigFileService current = service;
+        if (current == null) {
+            throw new IllegalStateException("ConfigFileServices not registered"
+            + ", call register() first");
+        }
+        return current;
     }
 }
