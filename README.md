@@ -18,8 +18,13 @@ Your configs follow you, not the pack.
 
 ## How to use it
 
+Download the jar for your loader — **Fabric**, **Forge** or **NeoForge** — and
+drop it into `mods/`. On Fabric, install **Fabric API** as well.
+
 Open ConfigSwitch from the **title screen** — there's an icon button just above
-the language button. With **Mod Menu** installed you'll find it there too.
+the language button. On **Fabric** with **Mod Menu** installed you'll find it
+there too; on **Forge** and **NeoForge** use the **Config** button in the mod
+list.
 
 1. Tick the mods you want to sync
 2. Hit **Push** to save them, or **Fetch** to load them
@@ -30,6 +35,12 @@ That's it — no config files to edit by hand.
 > bind it yourself under *Options → Controls* if you want it.
 
 ## Features
+
+### One mod, three loaders
+
+The same ConfigSwitch works on **Fabric**, **Forge** and **NeoForge** for
+Minecraft 1.21.1. Pick the jar that matches your loader; the global repository
+is shared.
 
 ### A `?` in the corner explains the two buttons
 
@@ -114,12 +125,23 @@ Change where the repository lives, and how many backups to keep.
 ## Requirements
 
 - Minecraft **1.21.1**
-- Fabric Loader **0.15.10** or newer
-- Fabric API
+- **Fabric** (Fabric Loader **0.15.10** or newer, plus **Fabric API**),
+  **Forge**, or **NeoForge**
 - **Windows** (for now)
 
 ## Known limitations
 
+- **Minecraft 1.20.1 is not supported yet.** Fabric / Forge / NeoForge on
+  1.21.1 only.
+- **There is no warning yet when configs came from a different Minecraft
+  version or loader.** They are copied as-is.
+- **A custom config directory is not fully supported yet.** If you launch with
+  a non-default config dir, the mod still uses `gameDir/config` for sync and
+  backups. Use the default config directory for now.
+- **Forge and NeoForge servers still load this client-side mod.** It does not
+  crash, but it is client-side only in practice.
+- **Mod Menu integration is Fabric-only.** On Forge / NeoForge use the mod
+  list's **Config** button.
 - **Mod configs take effect after a game restart** — `options.txt` applies
   immediately, but mods read their configs at startup
 - Config files whose names don't resemble their mod id, and that aren't in the
@@ -164,6 +186,19 @@ it's a one-off and does not persist.
 MIT — see [LICENSE.txt](https://github.com/bahetimo/ConfigSwitch/blob/main/LICENSE.txt)
 
 ## For contributors
+
+ConfigSwitch is a multi-loader project:
+
+| Module | What it is |
+|---|---|
+| `common` | shared code, compiled against vanilla |
+| `fabric` / `forge` / `neoforge` | loader entrypoints and metadata |
+
+Build with `./gradlew build` (Gradle **8.14.3**, JDK **21**). The Forge module
+uses ForgeGradle 6; behind a TLS-intercepting proxy you may need the
+`net.minecraftforge.gradle.check.certs` workaround. Run clients with
+`:fabric:runClient`, `:forge:Client` (run `:forge:genIntellijRuns` once), and
+`:neoforge:runClient`.
 
 The screenshots live in [`res/`](res/) so they stay out of the built jar.
 
