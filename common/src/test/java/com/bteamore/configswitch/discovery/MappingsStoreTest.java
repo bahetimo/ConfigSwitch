@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +39,14 @@ public class MappingsStoreTest {
                 .map(line -> line.replace(" ", ""))
                 .filter(line -> line.startsWith(key + "="))
                 .count();
+    }
+
+    // 要断言整段文件内容时顺序有意义：append 按 Map 的迭代顺序写行
+    private Map<String, String> ordered(String firstKey, String firstValue, String secondKey, String secondValue) {
+        Map<String, String> mappings = new LinkedHashMap<>();
+        mappings.put(firstKey, firstValue);
+        mappings.put(secondKey, secondValue);
+        return mappings;
     }
 
     // ---------- ① 首次注入 ----------
@@ -183,6 +192,113 @@ public class MappingsStoreTest {
         try (var entries = Files.list(mappingPath().getParent())) {
             assertEquals(List.of("mappings.txt"), entries.map(p -> p.getFileName().toString()).sorted().toList());
         }
+    }
+
+    // ---------- ⑤ append 的换行边界 ----------
+
+    // 0 字节文件：没有可接的尾字节，第一条前面不该多出换行
+    @Test
+    void testAppendToEmptyFileHasNoLeadingBlankLine() throws IOException {
+        writeFile("");
+        MappingsStore store = store();
+
+        assertTrue(store.append(Map.of("foo", "bar")));
+
+        assertEquals("foo=bar\n", Files.readString(mappingPath()));
+    }
+
+    // 连文件带目录都不存在、一次写多条：目录与文件由 append 自己建，第一条前面同样不该多出换行
+    @Test
+    void testAppendManyToMissingFileHasNoLeadingBlankLine() throws IOException {
+        MappingsStore store = store();
+
+        assertTrue(store.append(ordered("baz", "qux", "quux", "corge")));
+
+        assertTrue(Files.exists(mappingPath()));
+        assertEquals("baz=qux\nquux=corge\n", Files.readString(mappingPath()));
+    }
+
+    // 末尾已有换行：新条目直接接上，不补也不多出空行
+    @Test
+    void testAppendAfterTrailingNewlineAddsNoBlankLine() throws IOException {
+        writeFile("foo=bar\n");
+        MappingsStore store = store();
+
+        assertTrue(store.append(Map.of("baz", "qux")));
+
+        assertEquals("foo=bar\nbaz=qux\n", Files.readString(mappingPath()));
+    }
+
+    // 末尾已有换行、一次写多条：无需补换行，条目之间也不该出现空行
+    @Test
+    void testAppendManyAfterTrailingNewlineAddsNoBlankLine() throws IOException {
+        writeFile("foo=bar\n");
+        MappingsStore store = store();
+
+        assertTrue(store.append(ordered("baz", "qux", "quux", "corge")));
+
+        assertEquals("foo=bar\nbaz=qux\nquux=corge\n", Files.readString(mappingPath()));
+    }
+
+    // 末尾缺换行、只写一条：正好补一个换行把新旧两行隔开
+    @Test
+    void testAppendSingleAfterMissingTrailingNewlineAddsOne() throws IOException {
+        writeFile("foo=bar");
+        MappingsStore store = store();
+
+        assertTrue(store.append(Map.of("baz", "qux")));
+
+        assertEquals("foo=bar\nbaz=qux\n", Files.readString(mappingPath()));
+    }
+
+    // 末尾缺换行、一次写多条：补的换行只落在第一条之前，条目之间不该出现空行
+    @Test
+    void testAppendManyAfterMissingTrailingNewlineAddsSingleSeparator() throws IOException {
+        writeFile("foo=bar");
+        MappingsStore store = store();
+
+        assertTrue(store.append(ordered("baz", "qux", "quux", "corge")));
+
+        assertEquals("foo=bar\nbaz=qux\nquux=corge\n", Files.readString(mappingPath()));
+    }
+
+    // 连续两次 append：第二次接在第一次写出的换行后面，中间不空行
+    @Test
+    void testConsecutiveAppendsAddNoBlankLineBetween() throws IOException {
+        MappingsStore store = store();
+
+        assertTrue(store.append(Map.of("foo", "bar")));
+        assertTrue(store.append(Map.of("baz", "qux")));
+
+        assertEquals("foo=bar\nbaz=qux\n", Files.readString(mappingPath()));
+    }
+
+    // injectSeed 走的也是 append：末尾缺换行时补种多条，落盘该是一行一条、没有空行
+    @Test
+    void testInjectSeedIntoFileWithoutTrailingNewlineLeavesNoBlankLine() throws IOException {
+        writeFile("foo=bar");
+        MappingsStore store = store();
+
+        store.injectSeed(Map.of("baz", "qux", "quux", "corge"));
+
+        List<String> lines = Files.readAllLines(mappingPath());
+        assertTrue(lines.stream().noneMatch(String::isEmpty), lines.toString());
+
+        MappingTable table = store.load();
+        assertEquals(Optional.of("qux"), table.lookup("baz"));
+        assertEquals(Optional.of("corge"), table.lookup("quux"));
+    }
+
+    // injectSeed 落盘的就是磁盘上的表：换个新实例 load() 读到的内容与它返回的一致
+    @Test
+    void testLoadAfterInjectSeedReturnsSameTable() {
+        MappingsStore store = store();
+
+        MappingTable injected = store.injectSeed(MappingTable.loadBundled().entries());
+        MappingTable reloaded = store().load();
+
+        assertFalse(injected.entries().isEmpty());
+        assertEquals(injected.entries(), reloaded.entries());
     }
 
     // ---------- 读写边界 ----------

@@ -3,6 +3,7 @@ package com.bteamore.configswitch.discovery;
 import com.bteamore.configswitch.util.Log;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -87,10 +88,24 @@ public class MappingsStore {
 
     public boolean append(Map<String, String> mappings) {
         try {
+            boolean lfFirst = false;
+
             Files.createDirectories(mappingPath.getParent());
+            // 先读非空且最后一个字节不是\n
+            if (Files.exists(mappingPath) && Files.size(mappingPath) > 0) {
+                try (var reader = new RandomAccessFile(mappingPath.toFile(), "r")) {
+                    reader.seek(reader.length() - 1);
+                    lfFirst = reader.readByte() != '\n';
+                }
+            }
+
             try (var writer = Files.newBufferedWriter(mappingPath, StandardOpenOption.APPEND, StandardOpenOption.CREATE)){
+
+                if (lfFirst) {
+                    writer.write('\n');
+                }
                 for (Map.Entry<String, String> entry : mappings.entrySet()) {
-                    writer.write("\n" + FileNames.stemOf(entry.getKey()) + "=" + entry.getValue());
+                    writer.write(FileNames.stemOf(entry.getKey()) + "=" + entry.getValue() + "\n");
                 }
             }
         } catch (IOException e) {
