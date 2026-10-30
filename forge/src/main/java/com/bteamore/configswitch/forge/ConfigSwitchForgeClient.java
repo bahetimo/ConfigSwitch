@@ -31,7 +31,7 @@ public final class ConfigSwitchForgeClient {
 
         context.registerExtensionPoint(
             ConfigScreenHandler.ConfigScreenFactory.class,
-            () -> new ConfigScreenHandler.ConfigScreenFactory(ConfigScreen::new)
+            () -> new ConfigScreenHandler.ConfigScreenFactory((screen) -> new ConfigScreen(screen))
         );
     }
 

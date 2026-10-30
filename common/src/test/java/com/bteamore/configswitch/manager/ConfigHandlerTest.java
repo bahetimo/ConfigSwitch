@@ -7,6 +7,7 @@ import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.repo.LocalLayout;
 import com.bteamore.configswitch.util.Time;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.Test;
@@ -381,7 +382,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve("options.txt"), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
 
         // 恢复结果
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
@@ -397,7 +398,7 @@ public class ConfigHandlerTest {
         BackupSnapshot snapshot = makeSnapshot(backupRoot, Path.of("options.txt"), "new");
         Path targetRoot = tempDir.resolve("target"); // 目标不存在
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
         assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
@@ -422,7 +423,7 @@ public class ConfigHandlerTest {
         write(targetRoot.resolve("b.cfg"), "old-b");
         // c.cfg 目标不存在
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals(3, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get("a.cfg"));
@@ -447,7 +448,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "local");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
         assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
@@ -467,12 +468,44 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot, backupRoot);
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve(relative)));
         // null 条目没有相对路径，不进报告
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+    }
+
+    // 本地恢复的落点由 LocalLayout 按快照内相对路径分流：config/<file> 回 configDir，其余（options.txt）回 gameDir 根。
+    // configDir 刻意不取 gameDir/config，才能证明落点跟着布局走而不是写死某一层目录
+    @Test
+    void testRestoreRoutesConfigFilesToConfigDirAndVanillaToGameDir() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        Path modRelative = Path.of("config", "sodium-options.json");
+        Path vanillaRelative = Path.of("options.txt");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(modRelative), "repo-mod");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(vanillaRelative), "repo-vanilla");
+        BackupSnapshot snapshot = new BackupSnapshot(SNAPSHOT_TS, List.of(modRelative, vanillaRelative));
+
+        Path gameDir = tempDir.resolve("game");
+        Path configDir = tempDir.resolve("custom-config");
+        LocalLayout layout = new LocalLayout(gameDir, configDir);
+        // 两处目标都先有旧值：恢复后既能看新值，也能看到旧值被存进本次新建的备份
+        write(configDir.resolve("sodium-options.json"), "old-mod");
+        write(gameDir.resolve("options.txt"), "old-vanilla");
+
+        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, layout::localRestoreTarget, backupRoot);
+
+        assertEquals("repo-mod", Files.readString(configDir.resolve("sodium-options.json")));
+        assertEquals("repo-vanilla", Files.readString(gameDir.resolve("options.txt")));
+        // config 前缀是快照里的分组标记，不能落成目录；gameDir/config 也不该被凭空建出来
+        assertFalse(Files.exists(configDir.resolve("config")));
+        assertFalse(Files.exists(gameDir.resolve("config").resolve("sodium-options.json")));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(modRelative.toString()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(vanillaRelative.toString()));
+        // 旧值备份仍按快照内的相对路径存放（含 config 前缀），下次恢复才找得到
+        assertEquals("old-mod", Files.readString(restoreBackupDir(backupRoot).resolve(modRelative)));
+        assertEquals("old-vanilla", Files.readString(restoreBackupDir(backupRoot).resolve(vanillaRelative)));
     }
 
     // ---------- prune / deleteRecursively ----------

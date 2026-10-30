@@ -7,6 +7,7 @@ import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupScanner;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.manager.StateManager;
+import com.bteamore.configswitch.repo.LocalLayout;
 import com.bteamore.configswitch.repo.RepoPaths;
 import com.bteamore.configswitch.util.Log;
 import net.minecraft.client.Minecraft;
@@ -19,6 +20,7 @@ import net.minecraft.network.chat.MutableComponent;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Function;
 
 public class BackupScreen extends Screen {
     private enum Source {LOCAL, GLOBAL}
@@ -36,7 +38,7 @@ public class BackupScreen extends Screen {
     private static final int BUTTON_HEIGHT = 20;
     private static final int BOTTOM_MARGIN = 12;
 
-    private final Path gameDir;
+    private final LocalLayout localLayout;
     private Source source = Source.LOCAL;
 
     private Button globalSourceButton;
@@ -51,18 +53,14 @@ public class BackupScreen extends Screen {
 
     private final Screen parentScreen;
 
-    protected BackupScreen(Component title, Path gameDir, Screen parentScreen) {
+    protected BackupScreen(Component title, Screen parentScreen, LocalLayout localLayout) {
         super(title);
-        this.gameDir = gameDir;
         this.parentScreen = parentScreen;
+        this.localLayout = localLayout;
     }
 
     private Path backupRoot() {
-        return source == Source.LOCAL ? RepoPaths.localBackupDir(gameDir) : RepoPaths.backupDir();
-    }
-
-    private Path targetRoot() {
-        return source == Source.LOCAL ? gameDir : RepoPaths.commonDir();
+        return source == Source.LOCAL ? this.localLayout.localBackupRoot() : RepoPaths.backupDir();
     }
 
     @Override
@@ -157,7 +155,10 @@ public class BackupScreen extends Screen {
     }
 
     private void onRestore(BackupSnapshot snapshot) {
-        RestoreRequest request = new RestoreRequest(snapshot, targetRoot(), backupRoot(), report -> this.message = buildMessage(report));
+        Function<Path, Path> targetResolver = source == Source.LOCAL
+            ? localLayout::localRestoreTarget
+            : relative -> RepoPaths.commonDir().resolve(relative);
+        RestoreRequest request = new RestoreRequest(snapshot, targetResolver, backupRoot(), report -> this.message = buildMessage(report));
         this.stateManager.transition("restore", request);
         if (this.source == Source.LOCAL) {
             this.minecraft.options.load();

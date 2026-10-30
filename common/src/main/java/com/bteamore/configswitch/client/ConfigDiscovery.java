@@ -2,6 +2,7 @@ package com.bteamore.configswitch.client;
 
 import com.bteamore.configswitch.discovery.*;
 import com.bteamore.configswitch.platform.Platforms;
+import com.bteamore.configswitch.repo.LocalLayout;
 import com.bteamore.configswitch.repo.RepoPaths;
 import com.bteamore.configswitch.util.Log;
 
@@ -20,9 +21,9 @@ public class ConfigDiscovery {
     private final ConfigScanner scanner = new ConfigScanner();
     private ConfigClassifier classifier;
 
-    public ConfigDiscovery(Path dir) {
-        gameDir = dir;
-        configDir = Platforms.get().configDir();
+    public ConfigDiscovery(LocalLayout localLayout) {
+        gameDir = localLayout.gameDir();
+        configDir = localLayout.configDir();
         optionsFile = gameDir.resolve("options.txt");
     }
 

@@ -10,6 +10,7 @@ import com.bteamore.configswitch.manager.StateManager;
 import com.bteamore.configswitch.platform.Platforms;
 import com.bteamore.configswitch.repo.ConfigPathResolver;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.repo.LocalLayout;
 import com.bteamore.configswitch.util.Log;
 import com.bteamore.configswitch.util.Time;
 import net.minecraft.client.Minecraft;
@@ -56,6 +57,7 @@ public class ConfigScreen extends Screen {
     private AbstractWidget backupButton;
     private AbstractWidget settingsButton;
     private Screen parentscreen;
+    private final LocalLayout localLayout;
 
     private List<ModGroup> allGroups;
     private ModGroup residueGroup;
@@ -64,16 +66,22 @@ public class ConfigScreen extends Screen {
     private Component message;
     private double scrollAmount;
 
-    private final Path gameDir = Platforms.get().gameDir();
-
     private final StateManager stateManager = StateManager.getInstance();
-    private final ConfigDiscovery discovery = new ConfigDiscovery(gameDir);
-    private final ConfigPathResolver resolver = new ConfigPathResolver(gameDir);
+    private final ConfigDiscovery discovery;
+    private final ConfigPathResolver resolver;
     private SyncReport lastReport;
 
-    public ConfigScreen(Screen parent) {
+    public ConfigScreen(Screen parent, LocalLayout localLayout) {
         super(Component.translatable("configswitch.screen.config"));
         this.parentscreen = parent;
+        this.localLayout = localLayout;
+        this.discovery = new ConfigDiscovery(localLayout);
+        this.resolver = new ConfigPathResolver(localLayout);
+    }
+
+    public ConfigScreen(Screen parent) {
+        this(parent, new LocalLayout(Platforms.get().gameDir(),
+            Platforms.get().configDir()));
     }
 
     @Override
@@ -148,7 +156,7 @@ public class ConfigScreen extends Screen {
                 .build();
         // 备份管理
         this.backupButton = Button.builder(Component.translatable("configswitch.button.backup"),
-                        btn -> Minecraft.getInstance().setScreen(new BackupScreen(Component.translatable("configswitch.screen.backup"), this.gameDir, this)))
+                        btn -> Minecraft.getInstance().setScreen(new BackupScreen(Component.translatable("configswitch.screen.backup"), this, this.localLayout)))
                 .bounds(MARGIN_X, buttonY, BACKUP_BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build();
         // 完成按钮
@@ -189,7 +197,7 @@ public class ConfigScreen extends Screen {
 
         List<ConfigPaths> configPaths = selectedGroups.stream()
                 .flatMap(group -> group.getFiles().stream()
-                        .map(path -> resolver.resolve(group.getModId(), relativeOf(path), timeStamp, name)))
+                        .map(path -> resolver.resolve(group.getModId(), this.localLayout.relativeOf(path), timeStamp, name)))
                 .filter(Objects::nonNull)
                 .toList();
 
@@ -352,7 +360,7 @@ public class ConfigScreen extends Screen {
                 .filter(group -> group.getModId().equals(ModGroup.UNCATEGORIZED_ID))
                 .flatMap(group -> group.getFiles().stream()
                         .map(path -> {
-                            String[] split = relativeOf(path).split("/");
+                            String[] split = this.localLayout.relativeOf(path).split("/");
                             if (split.length > 1) {
                                 return split[0]+"/";
                             }
@@ -360,13 +368,5 @@ public class ConfigScreen extends Screen {
                         }))
                 .distinct()
                 .toList();
-    }
-
-    private String relativeOf(Path file) {
-        Path configDir = this.gameDir.resolve("config");
-        if (file.startsWith(configDir)){
-            return configDir.relativize(file).toString().replace("\\", "/");
-        }
-        return file.getFileName().toString();
     }
 }

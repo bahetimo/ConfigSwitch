@@ -4,10 +4,11 @@ import java.nio.file.Path;
 
 public class ConfigPathResolver {
     // Game Repo
-    private final Path gameDir;
+    private final LocalLayout localLayout;
 
-    public ConfigPathResolver(Path gameDir) {
-        this.gameDir = gameDir;
+
+    public ConfigPathResolver(LocalLayout localLayout) {
+        this.localLayout = localLayout;
     }
 
     public ConfigPaths resolve(String modId, String relativePath, String timestamp, String operation) {
@@ -26,13 +27,13 @@ public class ConfigPathResolver {
             //     return null; // Uncategorized不处理
             // }
         }
-        Path active = gameDir.resolve(cfgDir).resolve(relativePath);
+        Path active = localLayout.activeFor(modId, relativePath);
         Path global = RepoPaths.commonDir().resolve(modDir).resolve(relativePath);
         Path backupRoot;
         Path backup;
         switch (operation) {
             case "fetch" -> {
-                backupRoot = RepoPaths.localBackupDir(gameDir);
+                backupRoot = this.localLayout.localBackupRoot();
                 backup = backupRoot.resolve(timestamp).resolve(cfgDir).resolve(relativePath);
             }
             case "push" -> {

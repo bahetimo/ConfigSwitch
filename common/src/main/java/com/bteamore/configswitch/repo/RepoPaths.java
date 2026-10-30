@@ -29,8 +29,4 @@ public final class RepoPaths {
     public static Path importBackupDir() {
         return repoRoot().resolve("import-backup");
     }
-
-    public static Path localBackupDir(Path gameDir) {
-        return gameDir.resolve("config").resolve("switch").resolve("backup");
-    }
 }

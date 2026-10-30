@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class ConfigHandler implements IConfigFileService {
     private final int maxBackupCount;
@@ -115,7 +116,7 @@ public class ConfigHandler implements IConfigFileService {
     }
 
     @Override
-    public SyncReport restore(BackupSnapshot snapshot, Path targetRoot, Path backupRoot) {
+    public SyncReport restore(BackupSnapshot snapshot, Function<Path, Path> targetResolver, Path backupRoot) {
         Path sourceRoot = backupRoot.resolve(snapshot.timeStamp());
         Map<String, SyncOutcome> results = new LinkedHashMap<>();
         String newTimeStamp = Time.timeString();
@@ -127,7 +128,7 @@ public class ConfigHandler implements IConfigFileService {
             }
 
             Path source = sourceRoot.resolve(relative);
-            Path target = targetRoot.resolve(relative);
+            Path target = targetResolver.apply(relative);
 
             Log.debug("Restoring {} -> {}", source, target);
 
