@@ -256,7 +256,17 @@ public class ConfigHandler implements IConfigFileService {
             return packed;
         }
 
-        return RepoPacker.unpack(sourceRoot, input);
+        Optional<Boolean> packHasMeta = RepoPacker.containsEntry(
+            input, RepoMetaStore.GLOBAL_ENTRY);
+
+        PackReport report = RepoPacker.unpack(sourceRoot, input);
+
+        if (report.outcome() == PackReport.outcome.SUCCESS
+            && packHasMeta.isPresent()
+            && !packHasMeta.get()) {
+            repoMetaStore.delete();
+        }
+        return report;
     }
 
     private void priorityMerge(Map<String, SyncOutcome> result, String modId, SyncOutcome outcome) {

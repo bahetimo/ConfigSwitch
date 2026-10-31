@@ -1607,4 +1607,141 @@ public class ConfigHandlerTest {
         assertFalse(Files.exists(repo.resolve("global/new.json")), "备份失败后不该继续导入");
         assertEquals("KEEP", Files.readString(repo.resolve("global/keep.json")));
     }
+
+    // ---------- import 写 meta ----------
+    //
+    // 来源记录跟着仓库内容走：包里带了 meta 就整份换掉；旧包（不带 meta）意味着这批内容的
+    // 来源无从得知，旧的记录必须删干净，不能让它继续描述新内容。
+    // 这组用例的仓库根就是注入的 RepoMetaStore 所在的那个根（sourceRoot/global/meta.json）
+
+    // 包里那份 meta 的文本（结构最简：format + mods）
+    private static final String PACKED_META = "{\"format\":" + RepoMeta.FORMAT
+            + ",\"mods\":{\"jei\":{\"minecraft\":\"1.19.2\",\"loader\":\"forge\","
+            + "\"at\":\"2026-02-02T00:00:00Z\"}}}";
+
+    // 包里带 global/meta.json → 直接覆盖目标的来源记录，不额外删除
+    @Test
+    void testImportWithPackedMetaOverwritesTargetMeta() throws IOException {
+        Path repo = newRepo("repo");
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        Path zip = zipOf("global/meta.json", PACKED_META, "mappings.txt", "NEW");
+
+        PackReport report = handler(metaStore).importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        // at 也跟着包里的走：整份来源记录被替换，不是只覆盖部分字段
+        assertEquals(Map.of("jei", new ModSource("1.19.2", "forge", "2026-02-02T00:00:00Z")),
+                metaStore.load().mods());
+    }
+
+    // 旧包（不带 meta）导入成功 → 旧的来源记录必须删掉：它描述的配置已经被换掉了
+    @Test
+    void testImportWithoutPackedMetaRemovesTargetMeta() throws IOException {
+        Path repo = newRepo("repo");
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW");
+
+        PackReport report = handler(metaStore).importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertFalse(Files.exists(metaPath()), "包不带来源记录时，旧 meta 应该被删掉");
+        assertEquals(Map.of(), metaStore.load().mods());
+    }
+
+    // 目标仓库本来就没有 meta → 删除无事可做，导入照常成功
+    @Test
+    void testImportWithoutPackedMetaAndWithoutTargetMetaSucceeds() throws IOException {
+        Path repo = newRepo("repo");
+        write(repo.resolve("global/keep.json"), "KEEP");
+        Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW");
+
+        PackReport report = handler().importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertEquals("NEW", Files.readString(repo.resolve("global/sodium/sodium-options.json")));
+        assertFalse(Files.exists(metaPath()));
+    }
+
+    // 导入失败就不动旧 meta：包里的东西一条都没落地，来源记录也就不该失效
+    @Test
+    void testImportFailureKeepsTargetMeta() throws IOException {
+        Path repo = newRepo("repo");
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        String before = Files.readString(metaPath());
+        Path backupRoot = tempDir.resolve("import-backups");
+
+        // 读不出来：包根本不是 zip，containsEntry 也无法回答"带没带 meta"
+        Path notZip = tempDir.resolve("broken.zip");
+        write(notZip, "not a zip");
+        assertEquals(PackReport.outcome.NOT_A_PACKAGE,
+                handler(metaStore).importRepo(repo, notZip, backupRoot).outcome());
+        assertEquals(before, Files.readString(metaPath()), "导入失败不该动旧 meta");
+
+        // 能读但是包坏了（条目越界）：containsEntry 会说"没带 meta"，但不能据此删
+        Path traversal = zipOf("../escape.txt", "pwned");
+        assertEquals(PackReport.outcome.CORRUPTED,
+                handler(metaStore).importRepo(repo, traversal, backupRoot).outcome());
+        assertEquals(before, Files.readString(metaPath()), "包坏了也不该动旧 meta");
+    }
+
+    // 旧 meta 损坏（不是 JSON）也不影响：删掉即可，后续 load 视为未知
+    @Test
+    void testImportRemovesCorruptTargetMeta() throws IOException {
+        Path repo = newRepo("repo");
+        write(metaPath(), "not json");
+        Path zip = zipOf("mappings.txt", "NEW");
+
+        PackReport report = handler(new RepoMetaStore(metaPath()))
+                .importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertFalse(Files.exists(metaPath()));
+        assertEquals(Map.of(), new RepoMetaStore(metaPath()).load().mods());
+    }
+
+    // 包里的 meta 损坏 → 照样按包里的内容覆盖，之后按空表读，不把解析失败变成导入失败
+    @Test
+    void testImportWithCorruptPackedMetaKeepsPackageContent() throws IOException {
+        Path repo = newRepo("repo");
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        Path zip = zipOf("global/meta.json", "not json", "mappings.txt", "NEW");
+
+        PackReport report = handler(metaStore).importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertEquals("not json", Files.readString(metaPath()), "包里带 meta 就按包里的内容落地");
+        assertEquals(Map.of(), metaStore.load().mods());
+    }
+
+    // 删不掉（meta 落点是非空目录）→ 只记日志，导入结果与文件内容不受影响
+    @Test
+    void testImportMetaDeleteFailureKeepsResult() throws IOException {
+        Path repo = newRepo("repo");
+        // 非空目录才删不掉：空目录 deleteIfExists 会直接成功
+        write(metaPath().resolve("keep.txt"), "x");
+        Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW");
+
+        PackReport report = handler(new RepoMetaStore(metaPath()))
+                .importRepo(repo, zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertEquals("NEW", Files.readString(repo.resolve("global/sodium/sodium-options.json")));
+        assertTrue(Files.isDirectory(metaPath()), "删不掉的 meta 落点保持原样");
+    }
+
+    // 导入前的备份包带上旧 meta：回退时来源记录也跟着回去
+    @Test
+    void testImportBackupContainsOldMeta() throws IOException {
+        Path repo = newRepo("repo");
+        metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        String before = Files.readString(metaPath());
+        Path zip = zipOf("mappings.txt", "NEW");
+        Path backupRoot = tempDir.resolve("import-backups");
+
+        PackReport report = handler().importRepo(repo, zip, backupRoot);
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        Path backupZip = importBackupDir(backupRoot).resolve("backup.zip");
+        assertEquals(before, entryContent(backupZip, "global/meta.json"));
+    }
 }

@@ -1,6 +1,8 @@
 package com.bteamore.configswitch.config;
 
 import com.bteamore.configswitch.core.PackReport;
+import com.bteamore.configswitch.repo.RepoMeta;
+import com.bteamore.configswitch.repo.RepoMetaStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.ThrowingSupplier;
 import org.junit.jupiter.api.io.TempDir;
@@ -13,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -471,5 +474,38 @@ public class RepoPackerTest {
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         assertEquals(2, report.fileCount());
         assertEquals(zip, report.location());
+    }
+
+    // ---------- 来源记录 meta.json ----------
+
+    // 仓库里的 global/meta.json 同样在白名单内：原样进包，导入端才能区分"包里带没带来源记录"
+    @Test
+    void testPackIncludesRepoMeta() throws IOException {
+        Path repo = repoRoot("repo");
+        String meta = "{\"format\":" + RepoMeta.FORMAT + ",\"mods\":{}}";
+        write(repo, "mappings.txt", "M");
+        write(repo, RepoMetaStore.GLOBAL_ENTRY, meta);
+
+        Path zip = tempDir.resolve("out.zip");
+        assertTrue(pack(repo, zip, newManifest()));
+
+        try (ZipFile zipFile = new ZipFile(zip.toFile())) {
+            assertEquals(meta, entryContent(zipFile, RepoMetaStore.GLOBAL_ENTRY));
+        }
+    }
+
+    // containsEntry：能读就明确回答有/没有；读不出来（不是 zip、文件不在）返回空，
+    // 让调用方把"包里确实没带"与"不知道带没带"分开处理
+    @Test
+    void testContainsEntryDistinguishesAbsentFromUnreadable() throws IOException {
+        Path withMeta = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST, RepoMetaStore.GLOBAL_ENTRY, "{}");
+        assertEquals(Optional.of(true), RepoPacker.containsEntry(withMeta, RepoMetaStore.GLOBAL_ENTRY));
+
+        Path withoutMeta = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST, "global/a.json", "A");
+        assertEquals(Optional.of(false), RepoPacker.containsEntry(withoutMeta, RepoMetaStore.GLOBAL_ENTRY));
+
+        Path notZip = write(tempDir, "plain.zip", "plain text");
+        assertEquals(Optional.empty(), RepoPacker.containsEntry(notZip, RepoMetaStore.GLOBAL_ENTRY));
+        assertEquals(Optional.empty(), RepoPacker.containsEntry(tempDir.resolve("no-such.zip"), RepoMetaStore.GLOBAL_ENTRY));
     }
 }

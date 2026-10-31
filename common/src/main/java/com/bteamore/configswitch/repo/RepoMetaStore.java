@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 
 public class RepoMetaStore {
     public static final String META_FILE = "meta.json";
+    public static final String GLOBAL_ENTRY = "global/" + META_FILE;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -62,6 +63,14 @@ public class RepoMetaStore {
             mutator.accept(meta);
         }
         save(meta);
+    }
+
+    public void delete() {
+        try {
+            Files.deleteIfExists(metaPath);
+        } catch (IOException e) {
+            Log.warn("Failed to delete repo meta {}", metaPath, e);
+        }
     }
 
     private RepoMeta parse(String text) {

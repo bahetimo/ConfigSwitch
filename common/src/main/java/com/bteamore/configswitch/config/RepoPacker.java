@@ -13,10 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -142,6 +139,15 @@ public final class RepoPacker {
             return new PackReport(PackReport.outcome.IO_FAILED, fileCount, input);
         }
         return new PackReport(PackReport.outcome.SUCCESS, fileCount, input);
+    }
+
+    public static Optional<Boolean> containsEntry(Path input, String entryName) {
+        try (ZipFile zip = new ZipFile(input.toFile())) {
+            return Optional.of(zip.getEntry(entryName) != null);
+        } catch (RuntimeException | IOException e) {
+            Log.warn("Failed to inspect package {}: {}", input, e);
+            return Optional.empty();
+        }
     }
 
     // 解出的路径必须落在 target 之内：zip-slip 只在这里判定
