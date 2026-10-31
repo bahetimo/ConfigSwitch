@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -59,7 +58,7 @@ public class ConfigFileServicesTest {
         }
 
         @Override
-        public SyncReport restore(BackupSnapshot snapshot, Function<Path, Path> targetResolver, Path backupRoot) {
+        public SyncReport restore(BackupSnapshot snapshot, RestoreTarget restoreTarget, Path backupRoot) {
             throw new UnsupportedOperationException();
         }
 

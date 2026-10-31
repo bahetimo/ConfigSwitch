@@ -2,6 +2,7 @@ package com.bteamore.configswitch.client.gui;
 
 import com.bteamore.configswitch.client.gui.widget.BackupListWidget;
 import com.bteamore.configswitch.core.RestoreRequest;
+import com.bteamore.configswitch.core.RestoreTarget;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupScanner;
@@ -20,7 +21,6 @@ import net.minecraft.network.chat.MutableComponent;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.function.Function;
 
 public class BackupScreen extends Screen {
     private enum Source {LOCAL, GLOBAL}
@@ -155,10 +155,10 @@ public class BackupScreen extends Screen {
     }
 
     private void onRestore(BackupSnapshot snapshot) {
-        Function<Path, Path> targetResolver = source == Source.LOCAL
-            ? localLayout::localRestoreTarget
-            : relative -> RepoPaths.commonDir().resolve(relative);
-        RestoreRequest request = new RestoreRequest(snapshot, targetResolver, backupRoot(), report -> this.message = buildMessage(report));
+        RestoreTarget restoreTarget = source == Source.LOCAL
+            ? new RestoreTarget(localLayout::localRestoreTarget, false)
+            : new RestoreTarget(relative -> RepoPaths.commonDir().resolve(relative), true);
+        RestoreRequest request = new RestoreRequest(snapshot, restoreTarget, backupRoot(), report -> this.message = buildMessage(report));
         this.stateManager.transition("restore", request);
         if (this.source == Source.LOCAL) {
             this.minecraft.options.load();

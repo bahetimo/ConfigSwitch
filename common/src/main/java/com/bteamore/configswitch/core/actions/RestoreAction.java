@@ -14,7 +14,7 @@ public class RestoreAction implements Action<ConfigState, ConfigEvent> {
         if (context instanceof RestoreRequest restoreRequest) {
             Log.info("StateMachine - Restore started {}", restoreRequest.snapshot().timeStamp());
 
-            SyncReport report = service.restore(restoreRequest.snapshot(), restoreRequest.targetResolver(), restoreRequest.backupRoot());
+            SyncReport report = service.restore(restoreRequest.snapshot(), restoreRequest.restoreTarget(), restoreRequest.backupRoot());
             restoreRequest.onResult().accept(report);
         }
         return ConfigEvent.DONE;

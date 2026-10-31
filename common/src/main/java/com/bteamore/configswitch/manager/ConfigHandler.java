@@ -15,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.function.Function;
 
 public class ConfigHandler implements IConfigFileService {
     private final int maxBackupCount;
@@ -177,10 +176,11 @@ public class ConfigHandler implements IConfigFileService {
     }
 
     @Override
-    public SyncReport restore(BackupSnapshot snapshot, Function<Path, Path> targetResolver, Path backupRoot) {
+    public SyncReport restore(BackupSnapshot snapshot, RestoreTarget restoreTarget, Path backupRoot) {
         Path sourceRoot = backupRoot.resolve(snapshot.timeStamp());
         Map<String, SyncOutcome> results = new LinkedHashMap<>();
         String newTimeStamp = Time.timeString();
+        Set<String> restoredModIds = new LinkedHashSet<>();
 
         for (Path relative : snapshot.relativePaths()) {
             if (relative == null) {
@@ -189,7 +189,7 @@ public class ConfigHandler implements IConfigFileService {
             }
 
             Path source = sourceRoot.resolve(relative);
-            Path target = targetResolver.apply(relative);
+            Path target = restoreTarget.targetResolver().apply(relative);
 
             Log.debug("Restoring {} -> {}", source, target);
 
@@ -202,10 +202,21 @@ public class ConfigHandler implements IConfigFileService {
             if (!backupOk || !copyOk) {
                 priorityMerge(results, relative.toString(), SyncOutcome.FAILED);
             } else {
+                if (restoreTarget.global() && relative.getNameCount() > 1) {
+                    restoredModIds.add(relative.getName(0).toString());
+                }
                 priorityMerge(results, relative.toString(), SyncOutcome.SUCCESS);
             }
         }
         prune(backupRoot);
+
+        if (restoreTarget.global() && !restoredModIds.isEmpty()){
+            try {
+                this.repoMetaStore.update(meta -> restoredModIds.forEach(meta.mods()::remove));
+            } catch (RuntimeException e) {
+                Log.warn("Failed to update repo meta after restore", e);
+            }
+        }
 
         SyncReport report = new SyncReport(results);
         Log.info("Restore finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));

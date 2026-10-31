@@ -2,6 +2,7 @@ package com.bteamore.configswitch.manager;
 
 import com.bteamore.configswitch.config.PackManifest;
 import com.bteamore.configswitch.core.PackReport;
+import com.bteamore.configswitch.core.RestoreTarget;
 import com.bteamore.configswitch.core.SourceMismatch;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -755,9 +757,10 @@ public class ConfigHandlerTest {
         }
     }
 
-    // 统计 load() 次数：用来区分"整批读一次"与"每个文件读一次"
+    // 统计 load()/update() 次数：用来区分"整批一次"与"每个文件一次"
     private static final class CountingMetaStore extends RepoMetaStore {
         private int loads;
+        private int updates;
 
         private CountingMetaStore(Path metaPath) {
             super(metaPath);
@@ -767,6 +770,13 @@ public class ConfigHandlerTest {
         public RepoMeta load() {
             loads++;
             return super.load();
+        }
+
+        // 只数调用次数；内部的 load/save 仍走父类（save 不经过 update，不会重复计数）
+        @Override
+        public void update(Consumer<RepoMeta> mutator) {
+            updates++;
+            super.update(mutator);
         }
     }
 
@@ -844,7 +854,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve("options.txt"), "old");
 
-        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, new RestoreTarget(targetRoot::resolve, false), backupRoot);
 
         // 恢复结果
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
@@ -860,7 +870,7 @@ public class ConfigHandlerTest {
         BackupSnapshot snapshot = makeSnapshot(backupRoot, Path.of("options.txt"), "new");
         Path targetRoot = tempDir.resolve("target"); // 目标不存在
 
-        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, new RestoreTarget(targetRoot::resolve, false), backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
         assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
@@ -885,7 +895,7 @@ public class ConfigHandlerTest {
         write(targetRoot.resolve("b.cfg"), "old-b");
         // c.cfg 目标不存在
 
-        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, new RestoreTarget(targetRoot::resolve, false), backupRoot);
 
         assertEquals(3, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get("a.cfg"));
@@ -910,7 +920,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "local");
 
-        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, new RestoreTarget(targetRoot::resolve, false), backupRoot);
 
         assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
         assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
@@ -930,7 +940,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "old");
 
-        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, new RestoreTarget(targetRoot::resolve, false), backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve(relative)));
         // null 条目没有相对路径，不进报告
@@ -956,7 +966,7 @@ public class ConfigHandlerTest {
         write(configDir.resolve("sodium-options.json"), "old-mod");
         write(gameDir.resolve("options.txt"), "old-vanilla");
 
-        SyncReport report = handler().restore(snapshot, layout::localRestoreTarget, backupRoot);
+        SyncReport report = handler().restore(snapshot, new RestoreTarget(layout::localRestoreTarget, false), backupRoot);
 
         assertEquals("repo-mod", Files.readString(configDir.resolve("sodium-options.json")));
         assertEquals("repo-vanilla", Files.readString(gameDir.resolve("options.txt")));
@@ -968,6 +978,190 @@ public class ConfigHandlerTest {
         // 旧值备份仍按快照内的相对路径存放（含 config 前缀），下次恢复才找得到
         assertEquals("old-mod", Files.readString(restoreBackupDir(backupRoot).resolve(modRelative)));
         assertEquals("old-vanilla", Files.readString(restoreBackupDir(backupRoot).resolve(vanillaRelative)));
+    }
+
+    // ---------- restore 写 meta ----------
+    //
+    // 全局恢复会覆盖共享仓库里的配置：被恢复的 mod 其来源记录随之失效，要从 meta 里删掉。
+    // 全局快照内就是仓库的真实布局：除原版 options.txt 落在根，其余都是 <modId>/<file>，
+    // 所以相对路径的第一段就是 modId。本地恢复只动本机文件，不碰 meta
+
+    // 全局恢复的落点固定落在 tempDir 下；global 标记才是这组用例要压的东西
+    private RestoreTarget globalTarget(Path targetRoot) {
+        return new RestoreTarget(targetRoot::resolve, true);
+    }
+
+    // 全局恢复成功 → 该 mod 的来源记录被删，同一份 meta 里其他 mod 原样保留
+    @Test
+    void testGlobalRestoreRemovesRestoredModFromMeta() throws IOException {
+        ModSource shared = recorded("1.20.1", "fabric");
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", shared, "jei", shared));
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("sodium", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+
+        SyncReport report = handler(metaStore).restore(snapshot, globalTarget(tempDir.resolve("global")), backupRoot);
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+        assertEquals(Map.of("jei", shared), metaStore.load().mods());
+    }
+
+    // 一个 mod 挂两个文件：报告仍按文件逐条记（key 是两条相对路径），meta 只写一次、只删这个 mod
+    @Test
+    void testGlobalRestoreOfTwoFilesRemovesModFromMetaOnce() throws IOException {
+        ModSource shared = recorded("1.20.1", "fabric");
+        CountingMetaStore metaStore = new CountingMetaStore(metaPath());
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of("sodium", shared, "jei", shared)));
+        Path backupRoot = tempDir.resolve("backup");
+        Path options = Path.of("sodium", "sodium-options.json");
+        Path extra = Path.of("sodium", "sodium-extra.json");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(options), "repo-options");
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(extra), "repo-extra");
+        BackupSnapshot snapshot = new BackupSnapshot(SNAPSHOT_TS, List.of(options, extra));
+
+        SyncReport report = handler(metaStore).restore(snapshot, globalTarget(tempDir.resolve("global")), backupRoot);
+
+        // 报告按文件统计：两个文件两条记录，key 是快照内的相对路径而不是 modId
+        assertEquals(List.of(options.toString(), extra.toString()),
+                List.copyOf(report.results().keySet()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(options.toString()));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(extra.toString()));
+        // 两个文件属于同一个 modId，meta 应该一次删完，而不是每个文件落一次盘
+        assertEquals(1, metaStore.updates);
+        assertEquals(Map.of("jei", shared), metaStore.load().mods());
+    }
+
+    // 全局快照里只有原版 options.txt（它落在快照根、不属于任何 mod）→ meta 一次都不写
+    @Test
+    void testGlobalRestoreOfVanillaOnlyLeavesMetaUntouched() throws IOException {
+        ModSource shared = recorded("1.20.1", "fabric");
+        CountingMetaStore metaStore = new CountingMetaStore(metaPath());
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of("sodium", shared)));
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("options.txt");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+
+        SyncReport report = handler(metaStore).restore(snapshot, globalTarget(tempDir.resolve("global")), backupRoot);
+
+        // 原版文件的 key 就是扁平的 options.txt，不带任何目录前缀
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
+        assertEquals(0, metaStore.updates);
+        assertEquals(Map.of("sodium", shared), metaStore.load().mods());
+    }
+
+    // 部分失败：该 mod 只要有一个文件恢复成功就删条目；全部文件失败的 mod 保留
+    @Test
+    void testGlobalRestoreKeepsMetaOnlyForFullyFailedMod() throws IOException {
+        ModSource shared = recorded("1.20.1", "fabric");
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", shared, "jei", shared));
+        Path backupRoot = tempDir.resolve("backup");
+        Path sodiumOk = Path.of("sodium", "sodium-options.json");
+        Path sodiumMissing = Path.of("sodium", "sodium-extra.json");
+        Path jeiMissing = Path.of("jei", "jei.json");
+        // 只写出 sodium 的一个文件：sodium 一成一败，jei 全败
+        write(backupRoot.resolve(SNAPSHOT_TS).resolve(sodiumOk), "repo-sodium");
+        BackupSnapshot snapshot = new BackupSnapshot(SNAPSHOT_TS, List.of(sodiumOk, sodiumMissing, jeiMissing));
+
+        SyncReport report = handler(metaStore).restore(snapshot, globalTarget(tempDir.resolve("global")), backupRoot);
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(sodiumOk.toString()));
+        assertEquals(SyncOutcome.FAILED, report.results().get(sodiumMissing.toString()));
+        assertEquals(SyncOutcome.FAILED, report.results().get(jeiMissing.toString()));
+        assertEquals(Map.of("jei", shared), metaStore.load().mods());
+    }
+
+    // meta 缺失：恢复照常成功，来源记录不是恢复的前置条件
+    @Test
+    void testGlobalRestoreSucceedsWithoutMetaFile() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("sodium", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+        Path targetRoot = tempDir.resolve("global");
+
+        SyncReport report = handler(new RepoMetaStore(metaPath())).restore(snapshot, globalTarget(targetRoot), backupRoot);
+
+        assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+        assertFalse(report.hasFailed());
+    }
+
+    // meta 损坏：同样照常恢复，不把解析失败传染给恢复
+    @Test
+    void testGlobalRestoreSucceedsWithCorruptMeta() throws IOException {
+        write(metaPath(), "not json");
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("sodium", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+        Path targetRoot = tempDir.resolve("global");
+
+        SyncReport report = handler(new RepoMetaStore(metaPath())).restore(snapshot, globalTarget(targetRoot), backupRoot);
+
+        assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+    }
+
+    // meta 写入失败（落点被同名目录占住）：只记日志，恢复结果与文件内容不受影响
+    @Test
+    void testGlobalRestoreResultUnaffectedByMetaWriteFailure() throws IOException {
+        Files.createDirectories(metaPath());
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("sodium", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+        Path targetRoot = tempDir.resolve("global");
+
+        SyncReport report = handler(new RepoMetaStore(metaPath())).restore(snapshot, globalTarget(targetRoot), backupRoot);
+
+        assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+    }
+
+    // meta 删条目时直接抛异常（比落盘失败更彻底的故障）：恢复仍要交回完整报告，
+    // 不能因为来源记录写不进去就把已经恢复好的文件报成失败、甚至把报告吞掉
+    private static final class ThrowingMetaStore extends RepoMetaStore {
+        private ThrowingMetaStore(Path metaPath) {
+            super(metaPath);
+        }
+
+        @Override
+        public void update(Consumer<RepoMeta> mutator) {
+            throw new IllegalStateException("meta write failed");
+        }
+    }
+
+    @Test
+    void testGlobalRestoreResultUnaffectedByMetaStoreThrow() throws IOException {
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("sodium", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+        Path targetRoot = tempDir.resolve("global");
+
+        SyncReport report = handler(new ThrowingMetaStore(metaPath()))
+                .restore(snapshot, globalTarget(targetRoot), backupRoot);
+
+        assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+        assertFalse(report.hasFailed());
+    }
+
+    // 本地恢复：meta 一个字节都不变
+    @Test
+    void testLocalRestoreLeavesMetaUntouched() throws IOException {
+        RepoMetaStore metaStore = new RepoMetaStore(metaPath());
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of("sodium", recorded("1.20.1", "fabric"))));
+        String before = Files.readString(metaPath());
+
+        Path backupRoot = tempDir.resolve("backup");
+        Path relative = Path.of("config", "sodium-options.json");
+        BackupSnapshot snapshot = makeSnapshot(backupRoot, relative, "repo");
+        Path gameDir = tempDir.resolve("game");
+        LocalLayout layout = new LocalLayout(gameDir, gameDir.resolve("config"));
+
+        SyncReport report = handler(metaStore).restore(snapshot,
+                new RestoreTarget(layout::localRestoreTarget, false), backupRoot);
+
+        assertEquals("repo", Files.readString(gameDir.resolve("config").resolve("sodium-options.json")));
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
+        assertEquals(before, Files.readString(metaPath()));
     }
 
     // ---------- prune / deleteRecursively ----------
