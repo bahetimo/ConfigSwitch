@@ -2,6 +2,7 @@ package com.bteamore.configswitch.manager;
 
 import com.bteamore.configswitch.config.PackManifest;
 import com.bteamore.configswitch.core.PackReport;
+import com.bteamore.configswitch.core.SourceMismatch;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
@@ -98,6 +99,28 @@ public class ConfigHandlerTest {
     private void write(Path path, String content) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, content);
+    }
+
+    // ---------- 构造契约 ----------
+
+    // sourceInfo 为 null 在构造时就拒绝，不留到 push/fetch 里才 NPE
+    @Test
+    void testNullSourceInfoRejected() {
+        RepoMetaStore metaStore = new RepoMetaStore(metaPath());
+
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> new ConfigHandler(MAX_BACKUP_COUNT, null, metaStore));
+
+        assertTrue(thrown.getMessage().contains("sourceInfo"), thrown.getMessage());
+    }
+
+    // repoMetaStore 为 null 同样在构造时拒绝
+    @Test
+    void testNullMetaStoreRejected() {
+        NullPointerException thrown = assertThrows(NullPointerException.class,
+                () -> new ConfigHandler(MAX_BACKUP_COUNT, new SourceInfo("1.21.1", "fabric"), null));
+
+        assertTrue(thrown.getMessage().contains("repoMetaStore"), thrown.getMessage());
     }
 
     // global 已存在时：先备份旧值到 backup，再以 active 覆盖 global
@@ -502,6 +525,280 @@ public class ConfigHandlerTest {
         assertEquals(List.of("mod-two"), report.failedModIds());
         assertEquals(1, report.count(SyncOutcome.SUCCESS));
         assertEquals(1, report.count(SyncOutcome.FAILED));
+    }
+
+    // ---------- fetch 的来源比对 ----------
+    //
+    // fetch 拉下来的配置来自别人的机器：meta 里记着推送时的 MC 版本与 loader，
+    // 与当前来源不一致就要在报告里点名，但不阻断同步本身
+
+    // 预置一份 meta：modId → 当时推送的来源
+    private RepoMetaStore metaOf(Map<String, ModSource> entries) {
+        RepoMetaStore store = new RepoMetaStore(metaPath());
+        store.save(new RepoMeta(RepoMeta.FORMAT, entries));
+        return store;
+    }
+
+    // meta 里记录的一条来源
+    private ModSource recorded(String minecraft, String loader) {
+        return new ModSource(minecraft, loader, "2026-01-01T00:00:00Z");
+    }
+
+    // 一个能 fetch 成功的 mod：global 要在，active 也要在（fetch 会先备份即将被覆盖的本地配置，
+    // active 缺失会让备份失败、该 mod 记为 FAILED，这里只关心来源比对，别被它带偏）
+    private ConfigPaths fetchedMod(String modId, String fileName) throws IOException {
+        ConfigPaths paths = newPaths(modId, fileName);
+        write(paths.global(), "new");
+        write(paths.active(), "old");
+        return paths;
+    }
+
+    // 来源完全一致 → 没有任何警告
+    @Test
+    void testFetchSameSourceReportsNoMismatch() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.21.1", "fabric")));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("sodium"));
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // 只有 MC 版本不同 → 一条，并带上两边完整来源
+    @Test
+    void testFetchDifferentMinecraftReportsOne() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(List.of(new SourceMismatch("sodium", "1.20.1", "fabric", "1.21.1", "fabric")),
+                report.sourceMismatches());
+    }
+
+    // 只有 loader 不同 → 一条
+    @Test
+    void testFetchDifferentLoaderReportsOne() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.21.1", "forge")));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(List.of(new SourceMismatch("sodium", "1.21.1", "forge", "1.21.1", "fabric")),
+                report.sourceMismatches());
+    }
+
+    // 两者都不同也只算一条：按 modId 汇总，不按字段拆
+    @Test
+    void testFetchDifferentMinecraftAndLoaderStillReportsOne() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "forge")));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(1, report.sourceMismatches().size());
+        assertEquals(new SourceMismatch("sodium", "1.20.1", "forge", "1.21.1", "fabric"),
+                report.sourceMismatches().get(0));
+    }
+
+    // 没有 meta 文件（仓库从没记录过来源）→ 空，不崩
+    @Test
+    void testFetchWithoutMetaReportsNoMismatch() throws IOException {
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler().fetchGlobalToActive(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("sodium"));
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // meta 文件损坏 → 当没记录，空，不崩
+    @Test
+    void testFetchWithCorruptMetaReportsNoMismatch() throws IOException {
+        write(metaPath(), "not json");
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler().fetchGlobalToActive(List.of(paths));
+
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // 当前来源未知 → 无从比较，一条都不报
+    @Test
+    void testFetchWithUnknownCurrentSourceReportsNoMismatch() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "forge")));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+        ConfigHandler handler = new ConfigHandler(MAX_BACKUP_COUNT,
+                new SourceInfo("1.21.1", null), metaStore);
+
+        SyncReport report = handler.fetchGlobalToActive(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("sodium"));
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // 记录里的字段是空串（旧版本写的/字段缺失）→ 不当作不一致
+    @Test
+    void testFetchWithBlankRecordedFieldsReportsNoMismatch() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", new ModSource("", "", "")));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // 只报"勾选了 + 有记录 + 不一致"的：没勾选的、没记录的不进报告
+    @Test
+    void testOnlySelectedModsWithRecordAreReported() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of(
+                "sodium", recorded("1.20.1", "fabric"),   // 有记录
+                "jei", recorded("1.20.1", "fabric")));  // 有记录，但本次没勾选
+        ConfigPaths selected = fetchedMod("sodium", "sodium-options.json");
+        ConfigPaths unrecorded = fetchedMod("etf", "etf.json");   // 勾选了但没有记录
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(selected, unrecorded));
+
+        assertEquals(1, report.sourceMismatches().size());
+        assertEquals("sodium", report.sourceMismatches().get(0).modId());
+    }
+
+    // 一个 mod 挂多个文件 → 报告里仍只一条（按 modId 聚合）
+    @Test
+    void testModWithSeveralFilesIsReportedOnce() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        ConfigPaths options = fetchedMod("sodium", "sodium-options.json");
+        ConfigPaths extra = fetchedMod("sodium", "sodium-extra.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(options, extra));
+
+        assertEquals(1, report.sourceMismatches().size());
+        assertEquals("sodium", report.sourceMismatches().get(0).modId());
+    }
+
+    // 全局仓库里没这个文件（SKIPPED）→ 没拉到东西，不报来源不一致
+    @Test
+    void testSkippedModReportsNoMismatch() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        // global 不创建 → SKIPPED
+        ConfigPaths paths = newPaths("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(SyncOutcome.SKIPPED, report.results().get("sodium"));
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // 拉取失败的 mod 仍要报：文件没到手，来源不一致的风险更需要提示
+    @Test
+    void testFailedModIsReported() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        // backup 落点被同名文件占住 → 备份失败，该 mod 记为 FAILED
+        ConfigPaths paths = brokenBackupPaths("sodium", "sodium-options.json");
+        write(paths.global(), "new");
+        write(paths.active(), "old");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(SyncOutcome.FAILED, report.results().get("sodium"));
+        assertEquals(List.of(new SourceMismatch("sodium", "1.20.1", "fabric", "1.21.1", "fabric")),
+                report.sourceMismatches());
+    }
+
+    // 特殊组（原版等）不进 meta，也永远不报
+    @Test
+    void testSpecialGroupReportsNoMismatch() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of(ModGroup.VANILLA_ID, recorded("1.20.1", "forge")));
+        ConfigPaths paths = fetchedMod(ModGroup.VANILLA_ID, "options.txt");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(ModGroup.VANILLA_ID));
+        assertEquals(List.of(), report.sourceMismatches());
+    }
+
+    // 两个 mod 同时不一致：按 modId 排序输出，勾选顺序与字典序相反也不影响
+    @Test
+    void testMismatchesAreSortedByModId() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of(
+                "zeta", recorded("1.20.1", "forge"),
+                "alpha", recorded("1.20.1", "forge")));
+        // 故意先勾 zeta 再勾 alpha：不做排序时会按勾选顺序输出
+        ConfigPaths zeta = fetchedMod("zeta", "zeta.json");
+        ConfigPaths alpha = fetchedMod("alpha", "alpha.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(zeta, alpha));
+
+        assertEquals(List.of(
+                        new SourceMismatch("alpha", "1.20.1", "forge", "1.21.1", "fabric"),
+                        new SourceMismatch("zeta", "1.20.1", "forge", "1.21.1", "fabric")),
+                report.sourceMismatches());
+    }
+
+    // 同一次 fetch 的每条警告都带同一个当前来源：显示端据此只取第一条来展示
+    @Test
+    void testAllMismatchesShareSameCurrentSource() throws IOException {
+        RepoMetaStore metaStore = metaOf(Map.of(
+                "sodium", recorded("1.20.1", "forge"),
+                "jei", recorded("1.19.2", "quilt")));
+        ConfigPaths sodium = fetchedMod("sodium", "sodium-options.json");
+        ConfigPaths jei = fetchedMod("jei", "jei.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(sodium, jei));
+
+        // 记录侧两个 mod 各不相同，当前侧必须一致
+        assertEquals(2, report.sourceMismatches().size());
+        for (SourceMismatch mismatch : report.sourceMismatches()) {
+            assertEquals("1.21.1", mismatch.currentMinecraft());
+            assertEquals("fabric", mismatch.currentLoader());
+        }
+    }
+
+    // 统计 load() 次数：用来区分"整批读一次"与"每个文件读一次"
+    private static final class CountingMetaStore extends RepoMetaStore {
+        private int loads;
+
+        private CountingMetaStore(Path metaPath) {
+            super(metaPath);
+        }
+
+        @Override
+        public RepoMeta load() {
+            loads++;
+            return super.load();
+        }
+    }
+
+    // 一次 fetch 只读一次 meta：整批共用同一份快照，不随勾选的文件数增长
+    @Test
+    void testFetchReadsMetaOncePerBatch() throws IOException {
+        CountingMetaStore metaStore = new CountingMetaStore(metaPath());
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of(
+                "sodium", recorded("1.20.1", "fabric"),
+                "jei", recorded("1.20.1", "fabric"))));
+        ConfigPaths sodium = fetchedMod("sodium", "sodium-options.json");
+        ConfigPaths jei = fetchedMod("jei", "jei.json");
+
+        SyncReport report = handler(metaStore).fetchGlobalToActive(List.of(sodium, jei));
+
+        assertEquals(2, report.sourceMismatches().size());
+        assertEquals(1, metaStore.loads);
+    }
+
+    // 当前来源未知：连 meta 都不读（已经无法比较，不必白读一次盘）
+    @Test
+    void testUnknownSourceSkipsMetaRead() throws IOException {
+        CountingMetaStore metaStore = new CountingMetaStore(metaPath());
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of("sodium", recorded("1.20.1", "fabric"))));
+        ConfigPaths paths = fetchedMod("sodium", "sodium-options.json");
+        ConfigHandler handler = new ConfigHandler(MAX_BACKUP_COUNT,
+                new SourceInfo("1.21.1", null), metaStore);
+
+        SyncReport report = handler.fetchGlobalToActive(List.of(paths));
+
+        assertEquals(List.of(), report.sourceMismatches());
+        assertEquals(0, metaStore.loads);
     }
 
     // ---------- restore ----------

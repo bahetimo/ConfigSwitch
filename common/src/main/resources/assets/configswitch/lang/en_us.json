@@ -79,6 +79,8 @@
   "configswitch.message.save_failed": "Save failed",
   "configswitch.message.saved": "Saved — takes effect after a game restart",
   "configswitch.message.reset_done": "Reset to defaults — click Save to apply",
+  "configswitch.message.source_mismatch": "; %d mods came from a different version or loader (%s; current: %s/%s)",
+  "configswitch.message.source_mismatch.more": ", and %d more",
 
   "configswitch.error.path_blank": "Path cannot be empty",
   "configswitch.error.path_illegal": "Path contains invalid characters",

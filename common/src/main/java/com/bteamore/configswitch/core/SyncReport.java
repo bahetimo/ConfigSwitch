@@ -3,7 +3,15 @@ package com.bteamore.configswitch.core;
 import java.util.List;
 import java.util.Map;
 
-public record SyncReport(Map<String, SyncOutcome> results) {
+public record SyncReport(Map<String, SyncOutcome> results, List<SourceMismatch> sourceMismatches) {
+    public SyncReport(Map<String, SyncOutcome> results) {
+        this(results, List.of());
+    }
+
+    public SyncReport {
+        sourceMismatches = sourceMismatches == null ? List.of() : List.copyOf(sourceMismatches);
+    }
+
     public boolean hasFailed() {
         return results.containsValue(SyncOutcome.FAILED);
     }

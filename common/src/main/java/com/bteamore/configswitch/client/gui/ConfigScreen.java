@@ -2,6 +2,7 @@ package com.bteamore.configswitch.client.gui;
 
 import com.bteamore.configswitch.client.ConfigDiscovery;
 import com.bteamore.configswitch.client.gui.widget.ModGroupsWidget;
+import com.bteamore.configswitch.core.SourceMismatch;
 import com.bteamore.configswitch.core.SyncOutcome;
 import com.bteamore.configswitch.core.SyncReport;
 import com.bteamore.configswitch.core.SyncRequest;
@@ -27,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ConfigScreen extends Screen {
     private static final int BUTTON_WIDTH = 80;
@@ -239,6 +241,25 @@ public class ConfigScreen extends Screen {
         }
         if ("fetch".equals(name) && involvesModConfig(report)) {
             msg.append(Component.translatable("configswitch.message.suffix.restart"));
+        }
+        if (!report.sourceMismatches().isEmpty()) {
+            msg.append(sourceMismatchMessage(report.sourceMismatches()));
+        }
+        return msg;
+    }
+
+    private Component sourceMismatchMessage(List<SourceMismatch> mismatches) {
+        int count = mismatches.size();
+        String sep = Component.translatable("configswitch.label.list_sep").getString();
+        String examples = mismatches.stream()
+            .limit(3)
+            .map(m -> m.modId() + " (" + m.sourceMinecraft() + "/" + m.sourceLoader() + ")")
+            .collect(Collectors.joining(sep));
+
+        SourceMismatch first = mismatches.getFirst();
+        MutableComponent msg = Component.translatable("configswitch.message.source_mismatch", count, examples, first.currentMinecraft(), first.currentLoader());
+        if (count > 3) {
+            msg.append(Component.translatable("configswitch.message.source_mismatch.more", count - 3));
         }
         return msg;
     }

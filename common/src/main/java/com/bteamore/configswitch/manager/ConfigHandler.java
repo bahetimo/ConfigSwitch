@@ -5,10 +5,7 @@ import com.bteamore.configswitch.config.RepoPacker;
 import com.bteamore.configswitch.core.*;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.discovery.ModGroup;
-import com.bteamore.configswitch.repo.ConfigPaths;
-import com.bteamore.configswitch.repo.ModSource;
-import com.bteamore.configswitch.repo.RepoMetaStore;
-import com.bteamore.configswitch.repo.SourceInfo;
+import com.bteamore.configswitch.repo.*;
 import com.bteamore.configswitch.util.Hash;
 import com.bteamore.configswitch.util.Log;
 import com.bteamore.configswitch.util.Time;
@@ -107,6 +104,7 @@ public class ConfigHandler implements IConfigFileService {
     public SyncReport fetchGlobalToActive(List<ConfigPaths> paths) {
         Path backupRoot = null;
         Map<String, SyncOutcome> results = new LinkedHashMap<>();
+        RepoMeta metaAtStart = sourceInfo.isKnown() ? repoMetaStore.load() : null;
 
         for (ConfigPaths target : paths) {
             if (target == null) {
@@ -143,7 +141,37 @@ public class ConfigHandler implements IConfigFileService {
             prune(backupRoot);
         }
 
-        SyncReport report = new SyncReport(results);
+        List<SourceMismatch> mismatches = new ArrayList<>();
+
+        if (sourceInfo.isKnown()) {
+            for (var entry : results.entrySet()) {
+                if (entry.getValue() == SyncOutcome.SKIPPED) {
+                    continue;
+                }
+                if (isSpecialGroup(entry.getKey())) {
+                    continue;
+                }
+
+                ModSource source = metaAtStart.mods().get(entry.getKey());
+                if (source == null) {
+                    continue;
+                }
+                if (source.minecraft().isBlank() || source.loader().isBlank()) {
+                    continue;
+                }
+                if (source.minecraft().equals(sourceInfo.minecraft())
+                    && source.loader().equals(sourceInfo.loader())) {
+                    continue;
+                }
+                mismatches.add(new SourceMismatch(entry.getKey(), source.minecraft(), source.loader(), sourceInfo.minecraft(), sourceInfo.loader()));
+            }
+        }
+        if (!mismatches.isEmpty()) {
+            mismatches.sort(Comparator.comparing(SourceMismatch::modId));
+            Log.info("Fetch source mismatches: {}", mismatches);
+        }
+
+        SyncReport report = new SyncReport(results, mismatches);
         Log.info("Fetch finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));
         return report;
     }
