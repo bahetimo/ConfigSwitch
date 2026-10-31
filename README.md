@@ -42,6 +42,13 @@ The same ConfigSwitch works on **Fabric**, **Forge** and **NeoForge** for
 Minecraft 1.21.1. Pick the jar that matches your loader; the global repository
 is shared.
 
+### Warns when configs came from a different version or loader
+
+Fetch compares each mod's recorded source — the Minecraft version and loader
+it was last pushed from — with the current game. If they differ, the result
+message adds a short warning. The fetch still runs: the warning is a hint,
+not a block.
+
 ### A `?` in the corner explains the two buttons
 
 **Push** and **Fetch** aren't words everyone knows. There's a small **`?`** at the
@@ -133,11 +140,6 @@ Change where the repository lives, and how many backups to keep.
 
 - **Minecraft 1.20.1 is not supported yet.** Fabric / Forge / NeoForge on
   1.21.1 only.
-- **There is no warning yet when configs came from a different Minecraft
-  version or loader.** They are copied as-is.
-- **A custom config directory is not fully supported yet.** If you launch with
-  a non-default config dir, the mod still uses `gameDir/config` for sync and
-  backups. Use the default config directory for now.
 - **Forge and NeoForge servers still load this client-side mod.** It does not
   crash, but it is client-side only in practice.
 - **Mod Menu integration is Fabric-only.** On Forge / NeoForge use the mod
