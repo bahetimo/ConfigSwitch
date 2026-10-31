@@ -8,6 +8,10 @@ import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
 import com.bteamore.configswitch.repo.LocalLayout;
+import com.bteamore.configswitch.repo.ModSource;
+import com.bteamore.configswitch.repo.RepoMeta;
+import com.bteamore.configswitch.repo.RepoMetaStore;
+import com.bteamore.configswitch.repo.SourceInfo;
 import com.bteamore.configswitch.util.Time;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.Test;
@@ -20,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -39,6 +44,21 @@ public class ConfigHandlerTest {
 
     // 与生产 backup 路径结构对齐的时间戳目录名
     private static final String TS = "2026-09-07--00-00-00";
+
+    // 本次 push 会写的 meta 落点：每个用例各自一个 tempDir，天然隔离
+    private Path metaPath() {
+        return tempDir.resolve("repo/global/meta.json");
+    }
+
+    // 默认 handler 接一个真实落点的 RepoMetaStore；只有断言 meta 行为的用例才需要自己造 store 注入
+    private ConfigHandler handler() {
+        return handler(new RepoMetaStore(metaPath()));
+    }
+
+    private ConfigHandler handler(RepoMetaStore metaStore) {
+        return new ConfigHandler(MAX_BACKUP_COUNT,
+                new SourceInfo("1.21.1", "fabric"), metaStore);
+    }
 
     private ConfigPaths newPaths(String fileName) {
         return newPaths(MOD_ID, fileName);
@@ -89,7 +109,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        SyncReport report = handler().pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertTrue(Files.exists(paths.backup()));
@@ -104,7 +124,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.active().getParent());
         Files.writeString(paths.active(), "new");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        SyncReport report = handler().pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertFalse(Files.exists(paths.backup()));
@@ -118,7 +138,7 @@ public class ConfigHandlerTest {
         write(paths.active(), "new");
         write(paths.global(), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        SyncReport report = handler().pushActiveToGlobal(List.of(paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertEquals("old", Files.readString(paths.backup()));
@@ -133,13 +153,158 @@ public class ConfigHandlerTest {
         Files.writeString(paths.active(), "new");
 
         // List.of 不允许 null 元素，用 Arrays.asList 构造含 null 的列表
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(Arrays.asList(null, paths));
+        SyncReport report = handler().pushActiveToGlobal(Arrays.asList(null, paths));
 
         assertEquals("new", Files.readString(paths.global()));
         assertFalse(Files.exists(paths.backup()));
         // null 条目没有 modId，不进报告
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
+    }
+
+    // ---------- push 写 meta ----------
+    //
+    // meta 自身的解析与原子写由 RepoMetaStoreTest 负责，这里只压"push 的结果如何映射到 meta"：
+    // 哪些条目该写、哪些不该写，以及 meta 出错时不能影响 push 本身
+
+    // 推送成功的真实 mod → 记下本次来源的 MC 版本与 loader，at 是本次推送时刻
+    @Test
+    void testPushRecordsSuccessfulModIntoMeta() throws IOException {
+        ConfigPaths paths = newPaths("sodium", "sodium-options.json");
+        write(paths.active(), "new");
+
+        handler().pushActiveToGlobal(List.of(paths));
+
+        ModSource record = new RepoMetaStore(metaPath()).load().mods().get("sodium");
+        assertNotNull(record);
+        assertEquals("1.21.1", record.minecraft());
+        assertEquals("fabric", record.loader());
+        assertFalse(record.at().isBlank());
+    }
+
+    // 推送失败的 mod 不覆盖旧条目：旧记录原样留着，不给它盖上本次来源
+    @Test
+    void testFailedModKeepsOldMetaEntry() throws IOException {
+        RepoMetaStore metaStore = new RepoMetaStore(metaPath());
+        ModSource old = new ModSource("1.20.1", "forge", "2026-01-01T00:00:00Z");
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of("sodium", old)));
+        // 本地文件不存在 → 推送失败
+        ConfigPaths paths = newPaths("sodium", "sodium-options.json");
+
+        SyncReport report = handler(metaStore).pushActiveToGlobal(List.of(paths));
+
+        assertEquals(SyncOutcome.FAILED, report.results().get("sodium"));
+        assertEquals(old, metaStore.load().mods().get("sodium"));
+    }
+
+    // 原版 / uncategorized / residue 不是可追踪的 mod → 一条都不记，连 meta 文件都不建
+    @Test
+    void testSpecialGroupsAreNotRecorded() throws IOException {
+        List<ConfigPaths> paths = List.of(
+                newPaths(ModGroup.VANILLA_ID, "options.txt"),
+                newPaths(ModGroup.UNCATEGORIZED_ID, "uncategorized.cfg"),
+                newPaths(ModGroup.RESIDUE_ID, "residue.cfg"));
+        for (ConfigPaths path : paths) {
+            write(path.active(), "new");
+        }
+
+        SyncReport report = handler().pushActiveToGlobal(paths);
+
+        assertEquals(3, report.count(SyncOutcome.SUCCESS));
+        assertEquals(Map.of(), new RepoMetaStore(metaPath()).load().mods());
+        assertFalse(Files.exists(metaPath()));
+    }
+
+    // 当前来源未知（拿不到 loader）→ 推照常推，但 meta 不写也不建
+    @Test
+    void testUnknownSourceWritesNoMetaFile() throws IOException {
+        ConfigPaths paths = newPaths("sodium", "sodium-options.json");
+        write(paths.active(), "new");
+        ConfigHandler handler = new ConfigHandler(MAX_BACKUP_COUNT,
+                new SourceInfo("1.21.1", null), new RepoMetaStore(metaPath()));
+
+        SyncReport report = handler.pushActiveToGlobal(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("sodium"));
+        assertEquals("new", Files.readString(paths.global()));
+        assertFalse(Files.exists(metaPath()));
+    }
+
+    // 一次 push 多个 mod → 全部落盘，而不是只留下最后一个（压"每条写一次"的退化实现）
+    @Test
+    void testPushRecordsEveryModInOneGo() throws IOException {
+        List<ConfigPaths> paths = List.of(
+                newPaths("sodium", "sodium-options.json"),
+                newPaths("jei", "jei/jei.json"),
+                newPaths("etf", "etf.json"));
+        for (ConfigPaths path : paths) {
+            write(path.active(), "new");
+        }
+
+        handler().pushActiveToGlobal(paths);
+
+        Map<String, ModSource> mods = new RepoMetaStore(metaPath()).load().mods();
+        assertEquals(List.of("etf", "jei", "sodium"), mods.keySet().stream().sorted().toList());
+        // 同一次 push：三条的时间戳必须完全一致
+        assertEquals(1L, mods.values().stream().map(ModSource::at).distinct().count());
+    }
+
+    // 已有其他 mod 的条目时，本次 push 只增改自己的，不能把表覆盖成只剩本次的
+    @Test
+    void testPushKeepsUnrelatedMetaEntries() throws IOException {
+        RepoMetaStore metaStore = new RepoMetaStore(metaPath());
+        ModSource other = new ModSource("1.20.1", "forge", "2026-01-01T00:00:00Z");
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of("jei", other)));
+        ConfigPaths paths = newPaths("sodium", "sodium-options.json");
+        write(paths.active(), "new");
+
+        handler(metaStore).pushActiveToGlobal(List.of(paths));
+
+        Map<String, ModSource> mods = metaStore.load().mods();
+        assertEquals(2, mods.size());
+        assertEquals(other, mods.get("jei"));
+        assertEquals("1.21.1", mods.get("sodium").minecraft());
+    }
+
+    // meta 写失败（落点被目录占住）不能把已经成功的 push 拖下水
+    @Test
+    void testPushSucceedsEvenWhenMetaWriteFails() throws IOException {
+        Files.createDirectories(metaPath());
+        ConfigPaths paths = newPaths("sodium", "sodium-options.json");
+        write(paths.active(), "new");
+
+        SyncReport report = handler().pushActiveToGlobal(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get("sodium"));
+        assertEquals("new", Files.readString(paths.global()));
+        assertTrue(Files.isDirectory(metaPath()));
+    }
+
+    // 只推原版时不产生 meta 文件
+    @Test
+    void testPushVanillaOnlyCreatesNoMetaFile() throws IOException {
+        ConfigPaths paths = newPaths(ModGroup.VANILLA_ID, "options.txt");
+        write(paths.active(), "new");
+
+        SyncReport report = handler().pushActiveToGlobal(List.of(paths));
+
+        assertEquals(SyncOutcome.SUCCESS, report.results().get(ModGroup.VANILLA_ID));
+        assertFalse(Files.exists(metaPath()));
+    }
+
+    // 只推原版时已有 meta 一个字节都不改
+    @Test
+    void testPushVanillaOnlyKeepsExistingMeta() throws IOException {
+        RepoMetaStore metaStore = new RepoMetaStore(metaPath());
+        metaStore.save(new RepoMeta(RepoMeta.FORMAT, Map.of(
+                "sodium", new ModSource("1.20.1", "forge", "2026-01-01T00:00:00Z"))));
+        String before = Files.readString(metaPath());
+        ConfigPaths paths = newPaths(ModGroup.VANILLA_ID, "options.txt");
+        write(paths.active(), "new");
+
+        handler(metaStore).pushActiveToGlobal(List.of(paths));
+
+        assertEquals(before, Files.readString(metaPath()));
     }
 
     // 输入约定：fetch 的 paths 来自本地配置发现，active 必然存在；global 可缺失
@@ -152,7 +317,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.active().getParent());
         Files.writeString(paths.active(), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(paths));
+        SyncReport report = handler().fetchGlobalToActive(List.of(paths));
 
         assertEquals("new", Files.readString(paths.active()));
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
@@ -166,7 +331,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.active(), "old");
         // global 文件不创建
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(paths));
+        SyncReport report = handler().fetchGlobalToActive(List.of(paths));
 
         assertEquals("old", Files.readString(paths.active()));
         assertFalse(Files.exists(paths.backup()));
@@ -188,7 +353,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(covered.active().getParent());
         Files.writeString(covered.active(), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(skipped, covered));
+        SyncReport report = handler().fetchGlobalToActive(List.of(skipped, covered));
 
         // global 缺失：active 保持原值
         assertEquals("local", Files.readString(skipped.active()));
@@ -206,7 +371,7 @@ public class ConfigHandlerTest {
         write(paths.global(), "new");
         write(paths.active(), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(paths));
+        SyncReport report = handler().fetchGlobalToActive(List.of(paths));
 
         assertEquals("new", Files.readString(paths.active()));
         assertEquals("old", Files.readString(paths.backup()));
@@ -226,7 +391,7 @@ public class ConfigHandlerTest {
         ConfigPaths neverPushed = newPaths("b.cfg");
         write(neverPushed.active(), "local-b"); // global 缺失 → SKIPPED
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(ok, neverPushed));
+        SyncReport report = handler().fetchGlobalToActive(List.of(ok, neverPushed));
 
         assertEquals(1, report.results().size()); // 同 mod 只保留一条
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
@@ -244,7 +409,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "old-b");
         write(broken.global(), "new-b");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(ok, broken));
+        SyncReport report = handler().fetchGlobalToActive(List.of(ok, broken));
 
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
@@ -262,7 +427,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "old-b");
         write(broken.global(), "new-b");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(neverPushed, broken));
+        SyncReport report = handler().fetchGlobalToActive(List.of(neverPushed, broken));
 
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
         assertEquals(1, report.count(SyncOutcome.FAILED));
@@ -278,7 +443,7 @@ public class ConfigHandlerTest {
         ConfigPaths neverPushed = newPaths("b.cfg");
         write(neverPushed.active(), "local-b"); // global 缺失 → SKIPPED（后处理）
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).fetchGlobalToActive(List.of(broken, neverPushed));
+        SyncReport report = handler().fetchGlobalToActive(List.of(broken, neverPushed));
 
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
     }
@@ -293,7 +458,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "local-new-b");
         write(broken.global(), "repo-old-b"); // global 已存在 → 触发备份，而备份失败 → FAILED
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(ok, broken));
+        SyncReport report = handler().pushActiveToGlobal(List.of(ok, broken));
 
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.FAILED, report.results().get(MOD_ID));
@@ -310,7 +475,7 @@ public class ConfigHandlerTest {
         write(b.active(), "b");
         write(b.global(), "old-b");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(a, b));
+        SyncReport report = handler().pushActiveToGlobal(List.of(a, b));
 
         assertEquals(1, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get(MOD_ID));
@@ -329,7 +494,7 @@ public class ConfigHandlerTest {
         write(broken.active(), "b");
         write(broken.global(), "old-b");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(ok, broken));
+        SyncReport report = handler().pushActiveToGlobal(List.of(ok, broken));
 
         assertEquals(2, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get("mod-one"));
@@ -382,7 +547,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve("options.txt"), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
 
         // 恢复结果
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
@@ -398,7 +563,7 @@ public class ConfigHandlerTest {
         BackupSnapshot snapshot = makeSnapshot(backupRoot, Path.of("options.txt"), "new");
         Path targetRoot = tempDir.resolve("target"); // 目标不存在
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve("options.txt")));
         assertEquals(SyncOutcome.SUCCESS, report.results().get("options.txt"));
@@ -423,7 +588,7 @@ public class ConfigHandlerTest {
         write(targetRoot.resolve("b.cfg"), "old-b");
         // c.cfg 目标不存在
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals(3, report.results().size());
         assertEquals(SyncOutcome.SUCCESS, report.results().get("a.cfg"));
@@ -448,7 +613,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "local");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals("repo", Files.readString(targetRoot.resolve(relative)));
         assertEquals(SyncOutcome.SUCCESS, report.results().get(relative.toString()));
@@ -468,7 +633,7 @@ public class ConfigHandlerTest {
         Path targetRoot = tempDir.resolve("target");
         write(targetRoot.resolve(relative), "old");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, targetRoot::resolve, backupRoot);
+        SyncReport report = handler().restore(snapshot, targetRoot::resolve, backupRoot);
 
         assertEquals("new", Files.readString(targetRoot.resolve(relative)));
         // null 条目没有相对路径，不进报告
@@ -494,7 +659,7 @@ public class ConfigHandlerTest {
         write(configDir.resolve("sodium-options.json"), "old-mod");
         write(gameDir.resolve("options.txt"), "old-vanilla");
 
-        SyncReport report = new ConfigHandler(MAX_BACKUP_COUNT).restore(snapshot, layout::localRestoreTarget, backupRoot);
+        SyncReport report = handler().restore(snapshot, layout::localRestoreTarget, backupRoot);
 
         assertEquals("repo-mod", Files.readString(configDir.resolve("sodium-options.json")));
         assertEquals("repo-vanilla", Files.readString(gameDir.resolve("options.txt")));
@@ -550,7 +715,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
@@ -584,7 +749,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         assertTrue(Files.exists(keepMe));
         assertTrue(Files.exists(keepDir));
@@ -609,7 +774,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         // 最旧的非空目录应被整体删除
         assertFalse(Files.exists(oldest));
@@ -633,7 +798,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
@@ -662,7 +827,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
@@ -683,7 +848,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.global(), "old");
 
         // 不应抛出异常
-        assertDoesNotThrow(() -> new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths)));
+        assertDoesNotThrow(() -> handler().pushActiveToGlobal(List.of(paths)));
 
         // 新备份应被创建
         assertTrue(Files.exists(backupRoot.resolve(String.format(TS_FMT, 0))));
@@ -702,7 +867,7 @@ public class ConfigHandlerTest {
         Files.writeString(paths.global(), "old");
 
         // 不应抛出异常（copy 会创建目录，prune 会处理空目录）
-        assertDoesNotThrow(() -> new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths)));
+        assertDoesNotThrow(() -> handler().pushActiveToGlobal(List.of(paths)));
     }
 
     // prune：时间戳排序正确性 - 确保按时间戳排序而非字典序
@@ -724,7 +889,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         try (var stream = Files.list(backupRoot)) {
             List<String> remaining = stream.map(p -> p.getFileName().toString()).sorted().toList();
@@ -759,7 +924,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         assertFalse(Files.exists(oldest));
         assertFalse(Files.exists(oldest.resolve("single.cfg")));
@@ -783,7 +948,7 @@ public class ConfigHandlerTest {
         Files.createDirectories(paths.global().getParent());
         Files.writeString(paths.global(), "old");
 
-        new ConfigHandler(MAX_BACKUP_COUNT).pushActiveToGlobal(List.of(paths));
+        handler().pushActiveToGlobal(List.of(paths));
 
         assertFalse(Files.exists(oldest));
     }
@@ -844,7 +1009,7 @@ public class ConfigHandlerTest {
         write(repo.resolve("global/a.json"), "A");
         Path exports = tempDir.resolve("exports"); // 不存在，由 exportRepo 创建
 
-        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).exportRepo(repo, exports, "1.2.3");
+        PackReport report = handler().exportRepo(repo, exports, "1.2.3");
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         // 目录条目不计入文件数：只有 global/a.json 与 mappings.txt
@@ -872,7 +1037,7 @@ public class ConfigHandlerTest {
         Path blocked = tempDir.resolve("blocked");
         Files.writeString(blocked, "not a directory");
 
-        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).exportRepo(repo, blocked.resolve("exports"), "1.2.3");
+        PackReport report = handler().exportRepo(repo, blocked.resolve("exports"), "1.2.3");
 
         assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
         assertEquals(0, report.fileCount());
@@ -888,7 +1053,7 @@ public class ConfigHandlerTest {
         Path zip = zipOf("global/new.json", "NEW", "mappings.txt", "NEW");
         Path backupRoot = tempDir.resolve("import-backups"); // 不存在，由 importRepo 创建
 
-        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, backupRoot);
+        PackReport report = handler().importRepo(repo, zip, backupRoot);
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome(),
                 "备份目录 backupRoot/<时间戳> 需要由 importRepo 创建，否则打包备份会因父目录不存在而失败");
@@ -910,7 +1075,7 @@ public class ConfigHandlerTest {
         write(repo.resolve("global/untouched.json"), "KEEP");
         Path zip = zipOf("mappings.txt", "NEW");
 
-        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler().importRepo(repo, zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome(),
                 "备份目录 backupRoot/<时间戳> 需要由 importRepo 创建，否则导入永远停在备份失败上");
@@ -927,7 +1092,7 @@ public class ConfigHandlerTest {
         Path blocked = tempDir.resolve("blocked");
         Files.writeString(blocked, "not a directory");
 
-        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, blocked.resolve("backups"));
+        PackReport report = handler().importRepo(repo, zip, blocked.resolve("backups"));
 
         assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
         assertEquals(0, report.fileCount());
@@ -945,7 +1110,7 @@ public class ConfigHandlerTest {
         write(repo.resolve("global/keep.json"), "KEEP");
         Path zip = zipOf("global/new.json", "NEW");
 
-        PackReport report = new ConfigHandler(MAX_BACKUP_COUNT).importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler().importRepo(repo, zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
         assertFalse(Files.exists(repo.resolve("global/new.json")), "备份失败后不该继续导入");

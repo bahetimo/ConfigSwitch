@@ -31,4 +31,9 @@ public final class FabricPlatform implements Platform {
     public boolean isDevelopmentEnv() {
         return FabricLoader.getInstance().isDevelopmentEnvironment();
     }
+
+    @Override
+    public String loaderName() {
+        return "fabric";
+    }
 }

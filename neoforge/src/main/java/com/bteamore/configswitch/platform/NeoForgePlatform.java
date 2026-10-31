@@ -34,4 +34,9 @@ public final class NeoForgePlatform implements Platform {
     public boolean isDevelopmentEnv() {
         return !FMLLoader.isProduction();
     }
+
+    @Override
+    public String loaderName() {
+        return "neoforge";
+    }
 }

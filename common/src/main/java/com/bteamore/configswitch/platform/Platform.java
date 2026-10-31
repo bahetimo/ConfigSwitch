@@ -13,6 +13,7 @@ public interface Platform {
     Path configDir();
     List<ModEntry> mods();
     boolean isDevelopmentEnv();
+    String loaderName();
 
     default Set<String> modIds() {
         return mods().stream()

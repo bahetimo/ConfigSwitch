@@ -6,6 +6,9 @@ import com.bteamore.configswitch.core.*;
 import com.bteamore.configswitch.discovery.BackupSnapshot;
 import com.bteamore.configswitch.discovery.ModGroup;
 import com.bteamore.configswitch.repo.ConfigPaths;
+import com.bteamore.configswitch.repo.ModSource;
+import com.bteamore.configswitch.repo.RepoMetaStore;
+import com.bteamore.configswitch.repo.SourceInfo;
 import com.bteamore.configswitch.util.Hash;
 import com.bteamore.configswitch.util.Log;
 import com.bteamore.configswitch.util.Time;
@@ -14,22 +17,24 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 public class ConfigHandler implements IConfigFileService {
     private final int maxBackupCount;
+    private final SourceInfo sourceInfo;
+    private final RepoMetaStore repoMetaStore;
+
     private static final Map<SyncOutcome, Integer> PRIORITY = Map.of(
             SyncOutcome.FAILED, 3,
             SyncOutcome.SUCCESS, 2,
             SyncOutcome.SKIPPED, 1
     );
 
-    public ConfigHandler(int maxBackupCount) {
+    public ConfigHandler(int maxBackupCount, SourceInfo sourceInfo, RepoMetaStore repoMetaStore) {
         this.maxBackupCount = maxBackupCount;
+        this.sourceInfo = Objects.requireNonNull(sourceInfo, "sourceInfo");
+        this.repoMetaStore = Objects.requireNonNull(repoMetaStore, "repoMetaStore");
     }
 
     @Override
@@ -65,9 +70,37 @@ public class ConfigHandler implements IConfigFileService {
             prune(backupRoot);
         }
 
+        // 更新元数据
+        if (sourceInfo.isKnown()) {
+            String at = Time.isoUtcTimeString();
+            Map<String, ModSource> updates = new LinkedHashMap<>();
+
+            for (var entry : results.entrySet()) {
+                if (entry.getValue() == SyncOutcome.SUCCESS) {
+                    if (!isSpecialGroup(entry.getKey())) {
+                        updates.put(entry.getKey(), new ModSource(sourceInfo.minecraft(), sourceInfo.loader(), at));
+                    }
+                }
+            }
+
+            if (!updates.isEmpty()) {
+                try {
+                    repoMetaStore.update(meta -> meta.mods().putAll(updates));
+                } catch (RuntimeException e) {
+                    Log.warn("Failed to update repo meta after push", e);
+                }
+            }
+        }
+
         SyncReport report = new SyncReport(results);
         Log.info("Push finished: {} mods ({} ok, {} failed, {} skipped)", report.results().size(), report.count(SyncOutcome.SUCCESS), report.count(SyncOutcome.FAILED), report.count(SyncOutcome.SKIPPED));
         return report;
+    }
+
+    private boolean isSpecialGroup(String key) {
+        return ModGroup.VANILLA_ID.equals(key)
+            || ModGroup.UNCATEGORIZED_ID.equals(key)
+            || ModGroup.RESIDUE_ID.equals(key);
     }
 
     @Override

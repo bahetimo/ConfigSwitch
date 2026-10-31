@@ -1,5 +1,6 @@
 package com.bteamore.configswitch.util;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
@@ -11,5 +12,9 @@ public class Time {
     // 格式：YYYY-MM-DD--HH-mm-ss
     public static String timeString() {
         return LocalDateTime.now().format(TIME_FORMAT);
+    }
+
+    public static String isoUtcTimeString() {
+        return Instant.now().toString();
     }
 }

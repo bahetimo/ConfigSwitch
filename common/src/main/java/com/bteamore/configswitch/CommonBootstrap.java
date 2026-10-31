@@ -8,6 +8,8 @@ import com.bteamore.configswitch.manager.PendingRewrites;
 import com.bteamore.configswitch.platform.Platform;
 import com.bteamore.configswitch.platform.Platforms;
 import com.bteamore.configswitch.repo.GlobalRepo;
+import com.bteamore.configswitch.repo.RepoMetaStore;
+import com.bteamore.configswitch.repo.SourceInfo;
 import com.bteamore.configswitch.util.Log;
 
 public final class CommonBootstrap {
@@ -18,7 +20,8 @@ public final class CommonBootstrap {
         ModConfig.load();
         MappingConfig.injectSeed();
         GlobalRepo.init();
-        ConfigFileServices.register(new ConfigHandler(ModConfig.settings().maxBackupCount()));
+        SourceInfo source = new SourceInfo(platform.versionOf("minecraft").orElse(null), platform.loaderName());
+        ConfigFileServices.register(new ConfigHandler(ModConfig.settings().maxBackupCount(), source, RepoMetaStore.global()));
 
         Log.info("ConfigSwitch {} loaded (Minecraft {}, dev={})",
             platform.selfVersion(),
