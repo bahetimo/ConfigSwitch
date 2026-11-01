@@ -1446,11 +1446,17 @@ public class ConfigHandlerTest {
 
     // ---------- exportRepo / importRepo ----------
 
-    // 造一个可打包的仓库：RepoPacker 只收 global 目录与 mappings.txt，缺 mappings.txt 会打包失败
+    // 造一个可打包的仓库：RepoPacker 收 global 目录与 mappings.txt 两条来源。
+    // 只缺一条时打包仍成功（跳过那一条），两条都缺会失败——所以造仓库时至少给一条，通常两条都给
     private Path newRepo(String name) throws IOException {
         Path repo = Files.createDirectories(tempDir.resolve(name));
         Files.writeString(repo.resolve("mappings.txt"), "M");
         return repo;
+    }
+
+    // 默认布局下的映射表落点：单根重载就等价于第二源传它
+    private static Path mappings(Path repo) {
+        return repo.resolve("mappings.txt");
     }
 
     // 与 RepoPacker.pack 写出形态一致的 manifest
@@ -1500,7 +1506,7 @@ public class ConfigHandlerTest {
         write(repo.resolve("global/a.json"), "A");
         Path exports = tempDir.resolve("exports"); // 不存在，由 exportRepo 创建
 
-        PackReport report = handler().exportRepo(repo, exports, "1.2.3");
+        PackReport report = handler().exportRepo(repo, mappings(repo), exports, "1.2.3");
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         // 目录条目不计入文件数：只有 global/a.json 与 mappings.txt
@@ -1528,12 +1534,29 @@ public class ConfigHandlerTest {
         Path blocked = tempDir.resolve("blocked");
         Files.writeString(blocked, "not a directory");
 
-        PackReport report = handler().exportRepo(repo, blocked.resolve("exports"), "1.2.3");
+        PackReport report = handler().exportRepo(repo, mappings(repo), blocked.resolve("exports"), "1.2.3");
 
         assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
         assertEquals(0, report.fileCount());
         assertNull(report.location());
         assertEquals("not a directory", Files.readString(blocked));
+    }
+
+    // 仓库里两条来源都没有 → 导出失败，导出目录里不留空包（否则用户看到"导出成功"却拿到一张空包）
+    @Test
+    void testExportFailsWhenNothingToExport() throws IOException {
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));
+        Path exports = tempDir.resolve("exports");
+
+        PackReport report = handler().exportRepo(repo, mappings(repo), exports, "1.2.3");
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
+        assertEquals(0, report.fileCount());
+        assertTrue(Files.isDirectory(exports), "导出目录照旧由 exportRepo 创建");
+        assertFalse(Files.exists(report.location()), "没有可导出的内容时不该留下空包");
+        try (var files = Files.list(exports)) {
+            assertEquals(List.of(), files.toList(), "导出目录里也不该留下临时文件");
+        }
     }
 
     // 导入 = 先备份现有仓库、再解包：备份根与其下的时间戳目录都由 importRepo 创建，调用方只传路径
@@ -1544,7 +1567,7 @@ public class ConfigHandlerTest {
         Path zip = zipOf("global/new.json", "NEW", "mappings.txt", "NEW");
         Path backupRoot = tempDir.resolve("import-backups"); // 不存在，由 importRepo 创建
 
-        PackReport report = handler().importRepo(repo, zip, backupRoot);
+        PackReport report = handler().importRepo(repo, mappings(repo), zip, backupRoot);
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome(),
                 "备份目录 backupRoot/<时间戳> 需要由 importRepo 创建，否则打包备份会因父目录不存在而失败");
@@ -1566,7 +1589,7 @@ public class ConfigHandlerTest {
         write(repo.resolve("global/untouched.json"), "KEEP");
         Path zip = zipOf("mappings.txt", "NEW");
 
-        PackReport report = handler().importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler().importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome(),
                 "备份目录 backupRoot/<时间戳> 需要由 importRepo 创建，否则导入永远停在备份失败上");
@@ -1583,7 +1606,7 @@ public class ConfigHandlerTest {
         Path blocked = tempDir.resolve("blocked");
         Files.writeString(blocked, "not a directory");
 
-        PackReport report = handler().importRepo(repo, zip, blocked.resolve("backups"));
+        PackReport report = handler().importRepo(repo, mappings(repo), zip, blocked.resolve("backups"));
 
         assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
         assertEquals(0, report.fileCount());
@@ -1593,19 +1616,98 @@ public class ConfigHandlerTest {
         assertFalse(Files.exists(repo.resolve("global/new.json")));
     }
 
-    // 备份失败就不导入：没有可回退的包时不能动仓库
+    // 备份打不出包就不导入：没有可回退的内容时不能动仓库。
+    // 这一条压的是 RepoPacker.pack 那一支（备份目录建不出来那一支见上一条）：仓库里 global 与
+    // mappings 两条来源都没有，备份包无从产生 → 直接把打包失败的报告交回去
     @Test
     void testImportAbortsWhenBackupFails() throws IOException {
-        // 仓库里没有 mappings.txt → 备份打包失败
-        Path repo = Files.createDirectories(tempDir.resolve("repo"));
-        write(repo.resolve("global/keep.json"), "KEEP");
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));   // 两条来源都没有
         Path zip = zipOf("global/new.json", "NEW");
+        Path backupRoot = tempDir.resolve("import-backups");
 
-        PackReport report = handler().importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler().importRepo(repo, mappings(repo), zip, backupRoot);
 
         assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
-        assertFalse(Files.exists(repo.resolve("global/new.json")), "备份失败后不该继续导入");
-        assertEquals("KEEP", Files.readString(repo.resolve("global/keep.json")));
+        assertEquals(0, report.fileCount());
+        // 时间戳目录建出来了，但备份包不该留成半成品
+        assertFalse(Files.exists(importBackupDir(backupRoot).resolve("backup.zip")));
+        assertFalse(Files.exists(repo.resolve("global")), "备份失败后不该继续导入");
+    }
+
+    // ---------- exportRepo / importRepo 两源（repoRoot + mappingsFile） ----------
+    //
+    // 活动仓库根（global/、meta.json）与 mappings.txt 可以不在同一个目录：
+    // 导出/导入都要按各自的根走，不能拿一个根套到另一条的落点上
+
+    // 两源导出：global 取自 repoRoot，mappings.txt 取自另一个根
+    @Test
+    void testExportUsesBothRoots() throws IOException {
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));
+        write(repo.resolve("global/a.json"), "A");
+        Path config = Files.createDirectories(tempDir.resolve("config"));
+        write(config.resolve("mappings.txt"), "M-ACTIVE");
+
+        PackReport report = handler().exportRepo(repo, mappings(config), tempDir.resolve("exports"), "1.2.3");
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertEquals("A", entryContent(report.location(), "global/a.json"));
+        assertEquals("M-ACTIVE", entryContent(report.location(), "mappings.txt"),
+                "mappings 要取第二个根那份，而不是仓库根下的");
+        assertFalse(Files.exists(repo.resolve("mappings.txt")), "导出不该往仓库根里写东西");
+    }
+
+    // 两源导入：global 落到 repoRoot，mappings.txt 落到指定文件，两个根互不越界
+    @Test
+    void testImportUpdatesBothRoots() throws IOException {
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));
+        write(repo.resolve("global/old.json"), "OLD");   // 供导入前备份打包
+        Path config = Files.createDirectories(tempDir.resolve("config"));
+        write(config.resolve("mappings.txt"), "OLD-M");
+        Path zip = zipOf("global/new.json", "NEW", "mappings.txt", "NEW-M");
+
+        PackReport report = handler().importRepo(repo, mappings(config), zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertEquals("NEW", Files.readString(repo.resolve("global/new.json")));
+        assertEquals("NEW-M", Files.readString(config.resolve("mappings.txt")));
+        // 落点不串根
+        assertFalse(Files.exists(repo.resolve("mappings.txt")));
+        assertFalse(Files.exists(config.resolve("global")), "mappings 那个根下不该凭空出现 global/");
+    }
+
+    // 导入前的备份要把两条来源都收进去：回退时 mappings 也得回到旧值
+    @Test
+    void testImportBackupContainsActiveGlobalAndMappings() throws IOException {
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));
+        write(repo.resolve("global/old.json"), "OLD");
+        Path config = Files.createDirectories(tempDir.resolve("config"));
+        write(config.resolve("mappings.txt"), "OLD-M");
+        Path zip = zipOf("global/new.json", "NEW", "mappings.txt", "NEW-M");
+        Path backupRoot = tempDir.resolve("import-backups");
+
+        PackReport report = handler().importRepo(repo, mappings(config), zip, backupRoot);
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        Path backupZip = importBackupDir(backupRoot).resolve("backup.zip");
+        assertEquals("OLD", entryContent(backupZip, "global/old.json"));
+        assertEquals("OLD-M", entryContent(backupZip, "mappings.txt"),
+                "备份里丢的是活动那份 mappings，回退就会把旧仓库的 mappings 混进来");
+    }
+
+    // 旧包（不带 meta）导入仍删 meta：这里导入根与活动根一致，只是 mappings 另有落点
+    @Test
+    void testImportWithoutPackedMetaStillRemovesMetaWhenMappingsSplit() throws IOException {
+        Path repo = Files.createDirectories(tempDir.resolve("repo"));
+        RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
+        Path config = Files.createDirectories(tempDir.resolve("config"));
+        write(config.resolve("mappings.txt"), "OLD-M");
+        Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW-M");
+
+        PackReport report = handler(metaStore).importRepo(repo, mappings(config), zip, tempDir.resolve("import-backups"));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertFalse(Files.exists(metaPath()), "包不带来源记录时旧 meta 仍要删掉");
+        assertEquals(Map.of(), metaStore.load().mods());
     }
 
     // ---------- import 写 meta ----------
@@ -1626,7 +1728,7 @@ public class ConfigHandlerTest {
         RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
         Path zip = zipOf("global/meta.json", PACKED_META, "mappings.txt", "NEW");
 
-        PackReport report = handler(metaStore).importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler(metaStore).importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         // at 也跟着包里的走：整份来源记录被替换，不是只覆盖部分字段
@@ -1641,7 +1743,7 @@ public class ConfigHandlerTest {
         RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
         Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW");
 
-        PackReport report = handler(metaStore).importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler(metaStore).importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         assertFalse(Files.exists(metaPath()), "包不带来源记录时，旧 meta 应该被删掉");
@@ -1655,7 +1757,7 @@ public class ConfigHandlerTest {
         write(repo.resolve("global/keep.json"), "KEEP");
         Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW");
 
-        PackReport report = handler().importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler().importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         assertEquals("NEW", Files.readString(repo.resolve("global/sodium/sodium-options.json")));
@@ -1674,13 +1776,13 @@ public class ConfigHandlerTest {
         Path notZip = tempDir.resolve("broken.zip");
         write(notZip, "not a zip");
         assertEquals(PackReport.outcome.NOT_A_PACKAGE,
-                handler(metaStore).importRepo(repo, notZip, backupRoot).outcome());
+                handler(metaStore).importRepo(repo, mappings(repo), notZip, backupRoot).outcome());
         assertEquals(before, Files.readString(metaPath()), "导入失败不该动旧 meta");
 
         // 能读但是包坏了（条目越界）：containsEntry 会说"没带 meta"，但不能据此删
         Path traversal = zipOf("../escape.txt", "pwned");
         assertEquals(PackReport.outcome.CORRUPTED,
-                handler(metaStore).importRepo(repo, traversal, backupRoot).outcome());
+                handler(metaStore).importRepo(repo, mappings(repo), traversal, backupRoot).outcome());
         assertEquals(before, Files.readString(metaPath()), "包坏了也不该动旧 meta");
     }
 
@@ -1692,7 +1794,7 @@ public class ConfigHandlerTest {
         Path zip = zipOf("mappings.txt", "NEW");
 
         PackReport report = handler(new RepoMetaStore(metaPath()))
-                .importRepo(repo, zip, tempDir.resolve("import-backups"));
+                .importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         assertFalse(Files.exists(metaPath()));
@@ -1706,7 +1808,7 @@ public class ConfigHandlerTest {
         RepoMetaStore metaStore = metaOf(Map.of("sodium", recorded("1.20.1", "fabric")));
         Path zip = zipOf("global/meta.json", "not json", "mappings.txt", "NEW");
 
-        PackReport report = handler(metaStore).importRepo(repo, zip, tempDir.resolve("import-backups"));
+        PackReport report = handler(metaStore).importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         assertEquals("not json", Files.readString(metaPath()), "包里带 meta 就按包里的内容落地");
@@ -1722,7 +1824,7 @@ public class ConfigHandlerTest {
         Path zip = zipOf("global/sodium/sodium-options.json", "NEW", "mappings.txt", "NEW");
 
         PackReport report = handler(new RepoMetaStore(metaPath()))
-                .importRepo(repo, zip, tempDir.resolve("import-backups"));
+                .importRepo(repo, mappings(repo), zip, tempDir.resolve("import-backups"));
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         assertEquals("NEW", Files.readString(repo.resolve("global/sodium/sodium-options.json")));
@@ -1738,7 +1840,7 @@ public class ConfigHandlerTest {
         Path zip = zipOf("mappings.txt", "NEW");
         Path backupRoot = tempDir.resolve("import-backups");
 
-        PackReport report = handler().importRepo(repo, zip, backupRoot);
+        PackReport report = handler().importRepo(repo, mappings(repo), zip, backupRoot);
 
         assertEquals(PackReport.outcome.SUCCESS, report.outcome());
         Path backupZip = importBackupDir(backupRoot).resolve("backup.zip");

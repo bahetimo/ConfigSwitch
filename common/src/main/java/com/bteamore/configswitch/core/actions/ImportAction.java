@@ -14,7 +14,7 @@ public class ImportAction implements Action<ConfigState, ConfigEvent> {
         if (context instanceof ImportRequest importRequest) {
             Log.info("StateMachine - Import started {}", importRequest.input());
 
-            PackReport report = service.importRepo(importRequest.root(), importRequest.input(), importRequest.backupRoot());
+            PackReport report = service.importRepo(importRequest.repoRoot(), importRequest.mappingsFile(), importRequest.input(), importRequest.backupRoot());
             importRequest.onResult().accept(report);
         }
         return ConfigEvent.DONE;

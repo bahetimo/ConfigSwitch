@@ -3,7 +3,7 @@ package com.bteamore.configswitch.discovery;
 import com.bteamore.configswitch.repo.RepoPaths;
 
 public final class MappingConfig {
-    private static final MappingsStore STORE = new MappingsStore(RepoPaths.root().resolve("mappings.txt"));
+    private static final MappingsStore STORE = new MappingsStore(RepoPaths.mappingsFile());
     private static MappingTable table = MappingTable.empty();
 
     public static MappingTable mapping() {

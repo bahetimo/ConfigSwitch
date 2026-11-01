@@ -108,6 +108,38 @@ public class RepoPackerTest {
         return assertDoesNotThrow((ThrowingSupplier<PackReport>) () -> RepoPacker.unpack(root, input));
     }
 
+    // 两源重载：仓库根与 mappingsFile 各给一个
+    private static PackReport packTwo(Path repoRoot, Path mappingsFile, Path output) {
+        return assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                () -> RepoPacker.pack(repoRoot, mappingsFile, output, newManifest()));
+    }
+
+    private static PackReport unpackTwo(Path repoRoot, Path mappingsFile, Path input) {
+        return assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                () -> RepoPacker.unpack(repoRoot, mappingsFile, input));
+    }
+
+    // 包内条目名（去掉 manifest，含目录条目）：比两次打包是否产出同一份内容
+    private static List<String> entryNames(Path zip) throws IOException {
+        try (ZipFile zipFile = new ZipFile(zip.toFile())) {
+            return zipFile.stream()
+                    .map(ZipEntry::getName)
+                    .filter(name -> !name.equals(PackManifest.ENTRY_NAME))
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    // 目录下所有文件的相对路径（分隔符统一成 /）：比两次解包的落盘结果
+    private static List<String> relativeFiles(Path root) throws IOException {
+        try (var walk = Files.walk(root)) {
+            return walk.filter(Files::isRegularFile)
+                    .map(path -> root.relativize(path).toString().replace("\\", "/"))
+                    .sorted()
+                    .toList();
+        }
+    }
+
     // ---------- 打包 ----------
 
     // 白名单里的进包：global 目录（含子目录与目录条目）、mappings.txt；白名单外的文件不打包
@@ -165,25 +197,158 @@ public class RepoPackerTest {
         assertEquals("not a directory", Files.readString(blocked));
     }
 
-    // 仓库里没有 mappings.txt → 打包失败
-    @Test
-    void testPackFailsWithoutMappings() throws IOException {
-        Path repo = repoRoot("repo");
-        write(repo, "global/a.json", "A");
+    // ---------- 打包：来源缺失 ----------
+    //
+    // 两条来源各自独立：缺一条只跳过那一条（真实的仓库可能还没生成 mappings.txt，也可能还没 push 过内容）。
+    // 但一条文件都没进包 = 没有可导出的东西，必须判失败：那种包只有 manifest，用户看到的是"导出成功"，
+    // 导入回来还会顺手把 meta 删掉
 
-        assertFalse(pack(repo, tempDir.resolve("out.zip"), newManifest()));
-    }
-
-    // 打包失败留下的残包不能被当成合法包：否则导入会报成功，却什么都没恢复
+    // 只有 global：mappings.txt 那条跳过，global 照常进包
     @Test
-    void testFailedPackLeavesNoUsablePackage() throws IOException {
+    void testPackSkipsMissingMappings() throws IOException {
         Path repo = repoRoot("repo");
         write(repo, "global/a.json", "A");
 
         Path zip = tempDir.resolve("out.zip");
+        assertTrue(pack(repo, zip, newManifest()));
+
+        try (ZipFile zipFile = new ZipFile(zip.toFile())) {
+            assertNotNull(zipFile.getEntry("global/"), "缺少 global 目录条目");
+            assertEquals("A", entryContent(zipFile, "global/a.json"));
+            assertNull(zipFile.getEntry("mappings.txt"), "没有来源就不该凭空造一条 mappings.txt");
+        }
+    }
+
+    // 只有 mappings.txt：global 那条跳过，mappings 照常进包
+    @Test
+    void testPackSkipsMissingGlobal() throws IOException {
+        Path repo = repoRoot("repo");
+        write(repo, "mappings.txt", "M");
+        write(repo, "other/c.json", "C");
+
+        Path zip = tempDir.resolve("out.zip");
+        assertTrue(pack(repo, zip, newManifest()));
+
+        try (ZipFile zipFile = new ZipFile(zip.toFile())) {
+            assertEquals("M", entryContent(zipFile, "mappings.txt"));
+            assertNull(zipFile.getEntry("global/"), "global 不存在就不该有目录条目");
+            assertNull(zipFile.getEntry("global/mappings.txt"));
+            assertNull(zipFile.getEntry("other/c.json"));
+        }
+    }
+
+    // 两个路径都不存在（repoRoot/global 与 mappingsFile 都没建出来）→ 没有可导出的东西：判失败，不留空包
+    @Test
+    void testPackFailsWhenBothPathsMissing() throws IOException {
+        Path repo = repoRoot("repo");   // 什么都不写：global 与 mappings.txt 都不存在
+
+        Path zip = tempDir.resolve("out.zip");
+        PackReport report = packReport(repo, zip, newManifest());
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome(), "两个路径都不存在时导出必须失败");
+        assertEquals(0, report.fileCount());
+        assertFalse(Files.exists(zip), "失败时不该在目标位置留下空包");
+    }
+
+    // 仓库里有文件、但一条都不在白名单里：等于两条来源都没有，照样判失败
+    @Test
+    void testPackFailsWhenOnlyExcludedFilesExist() throws IOException {
+        Path repo = repoRoot("repo");
+        write(repo, "other/c.json", "C");
+
+        Path zip = tempDir.resolve("out.zip");
+        PackReport report = packReport(repo, zip, newManifest());
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome(), "白名单外的文件不算内容");
+        assertEquals(0, report.fileCount());
+        assertFalse(Files.exists(zip), "失败时不该在目标位置留下空包");
+    }
+
+    // global 在、但一个文件都没有（只剩空目录），mappings 也没有 → 同样是空包，一样判失败。
+    // 这条同时压住两源重载：判定要落在"有没有文件进包"上，不是"两个路径存不存在"
+    @Test
+    void testPackFailsWhenNoFileEntersThePackage() throws IOException {
+        Path repo = repoRoot("repo");
+        Files.createDirectories(repo.resolve("global/sodium"));
+
+        Path zip = tempDir.resolve("out.zip");
+        assertEquals(PackReport.outcome.IO_FAILED,
+                packTwo(repo, repo.resolve("mappings.txt"), zip).outcome(),
+                "只有目录条目、没有一个配置文件时导出必须失败");
+        assertFalse(Files.exists(zip));
+    }
+
+    // mappingsFile 在仓库之外也是同一条来源：条目名固定是包根部的 mappings.txt，与源文件名无关
+    @Test
+    void testPackTakesMappingsFromOutsideRepoRoot() throws IOException {
+        Path repo = repoRoot("repo");
+        write(repo, "global/a.json", "A");
+        write(tempDir.resolve("elsewhere"), "mapping.txt", "ELSEWHERE");
+
+        Path zip = tempDir.resolve("out.zip");
+        PackReport report = assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                () -> RepoPacker.pack(repo, tempDir.resolve("elsewhere/mapping.txt"), zip, newManifest()));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        try (ZipFile zipFile = new ZipFile(zip.toFile())) {
+            assertEquals("ELSEWHERE", entryContent(zipFile, "mappings.txt"));
+        }
+    }
+
+    // 打包失败不能留下可用的残包：输出打不开时目标位置什么也没有
+    @Test
+    void testFailedPackLeavesNoUsablePackage() throws IOException {
+        Path repo = repoRoot("repo");
+        write(repo, "global/a.json", "A");
+        write(repo, "mappings.txt", "M");
+        Path blocked = write(tempDir, "blocked", "not a directory");
+        Path zip = blocked.resolve("out.zip");
+
         assertFalse(pack(repo, zip, newManifest()));
 
-        assertFalse(unpack(newTarget(), zip), "残包不该被接受");
+        assertFalse(Files.exists(zip), "失败的打包不该在目标位置留下包");
+        assertFalse(unpack(newTarget(), zip), "目标位置没有包，导入要拒绝");
+    }
+
+    // ---------- 单根重载与两源等价 ----------
+
+    // 默认布局（mappings.txt 就在 repoRoot 下）时，单根重载必须与"显式传 repoRoot/mappings.txt"是同一件事：
+    // 重载只省一个参数，不能偷偷变成另一套行为
+    @Test
+    void testSingleRootOverloadsEqualTwoSourceWithDefaultLayout() throws IOException {
+        Path repo = repoRoot("repo");
+        write(repo, "global/a.json", "A");
+        write(repo, "global/sub/b.json", "B");
+        write(repo, RepoMetaStore.GLOBAL_ENTRY, "{\"format\":" + RepoMeta.FORMAT + ",\"mods\":{}}");
+        write(repo, "mappings.txt", "M");
+
+        Path viaOverload = tempDir.resolve("overload.zip");
+        Path viaTwoSource = tempDir.resolve("two-source.zip");
+        assertTrue(pack(repo, viaOverload, newManifest()));
+        // 3 个文件 + 目录条目：global/、global/sub/ 不计入 fileCount
+        assertEquals(4, packTwo(repo, repo.resolve("mappings.txt"), viaTwoSource).fileCount());
+
+        // 同一批条目、同一份内容（含 global/meta.json，它随 global 走）
+        assertEquals(entryNames(viaOverload), entryNames(viaTwoSource));
+        assertTrue(entryNames(viaOverload).contains(RepoMetaStore.GLOBAL_ENTRY), "meta 应该随 global 一起进包");
+        try (ZipFile a = new ZipFile(viaOverload.toFile()); ZipFile b = new ZipFile(viaTwoSource.toFile())) {
+            for (String name : entryNames(viaOverload)) {
+                if (!name.endsWith("/")) {
+                    assertEquals(entryContent(a, name), entryContent(b, name), name);
+                }
+            }
+        }
+
+        // 解包落点也一致：单根重载等价于 mappingsFile 取 target/mappings.txt
+        Path byOverload = newTarget();
+        Path byTwoSource = newTarget();
+        assertTrue(unpack(byOverload, viaOverload));
+        assertEquals(PackReport.outcome.SUCCESS,
+                unpackTwo(byTwoSource, byTwoSource.resolve("mappings.txt"), viaOverload).outcome());
+
+        assertEquals(List.of("global/a.json", "global/meta.json", "global/sub/b.json", "mappings.txt"),
+                relativeFiles(byOverload));
+        assertEquals(relativeFiles(byOverload), relativeFiles(byTwoSource));
     }
 
     // ---------- 解包拒绝：打不开的包 ----------
@@ -295,6 +460,79 @@ public class RepoPackerTest {
         assertFalse(unpack(target, zip));
 
         assertFalse(Files.exists(tempDir.resolve("escape.txt")), "越界文件被写出来了");
+    }
+
+    // ---------- 解包：两条来源各自的落点与各自的 containment 根 ----------
+
+    // 条目名正好是 mappings.txt → 落到 mappingsFile，仓库根里不出现同名文件；父级目录由解包端建出来
+    @Test
+    void testUnpackRoutesMappingsEntryToMappingsFile() throws IOException {
+        Path target = newTarget();
+        Path mappings = target.resolve("mapping/mapping.txt");
+        Path zip = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST, "global/a.json", "A", "mappings.txt", "M");
+
+        PackReport report = assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                () -> RepoPacker.unpack(target, mappings, zip));
+
+        assertEquals(PackReport.outcome.SUCCESS, report.outcome());
+        assertEquals(2, report.fileCount());
+        assertEquals("A", read(target, "global/a.json"));
+        assertEquals("M", Files.readString(mappings));
+        assertFalse(Files.exists(target.resolve("mappings.txt")), "mappings.txt 不该解到仓库根里");
+    }
+
+    // ../mapping.txt 不是 mappings 路由（条目名不正好等于 mappings.txt）：按 repoRoot 的越界判定拒绝
+    @Test
+    void testUnpackRejectsMappingsLookalikeEscapingRepoRoot() throws IOException {
+        Path target = newTarget();
+        Path mappings = tempDir.resolve("elsewhere/mapping.txt");
+        Path zip = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST, "../mapping.txt", "pwned");
+
+        PackReport report = assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                () -> RepoPacker.unpack(target, mappings, zip));
+
+        assertEquals(PackReport.outcome.CORRUPTED, report.outcome());
+        assertFalse(Files.exists(tempDir.resolve("mapping.txt")), "越界文件被写出来了");
+        assertFalse(Files.exists(mappings), "被拒绝的条目不该写到 mappingsFile");
+        assertTrue(children(target).isEmpty());
+    }
+
+    // mappingsFile 的父级被普通文件占住：按 mappings 自己的根做父级校验才拦得住
+    @Test
+    void testUnpackRejectsMappingsBlockedByFileParent() throws IOException {
+        Path target = newTarget();
+        Path blocker = write(target, "mapping", "FILE");
+        Path mappings = blocker.resolve("mapping.txt");
+        Path zip = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST, "mappings.txt", "M");
+
+        PackReport report = assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                () -> RepoPacker.unpack(target, mappings, zip));
+
+        assertEquals(PackReport.outcome.IO_FAILED, report.outcome());
+        assertEquals("FILE", Files.readString(blocker), "拒绝时不该动已有文件");
+        assertEquals(List.of(blocker), children(target), "拒绝时不该多出任何文件");
+    }
+
+    // 两源共用一套计划路径（都要绝对化 + normalize 才比得出来）：跨源撞名两种排法都拒绝
+    @Test
+    void testUnpackRejectsMappingsConflictingWithFileEntry() throws IOException {
+        Path mappingsFirst = newTarget();
+        Path zipMappingsFirst = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST,
+                "mappings.txt", "M", "mapping", "FILE");
+        assertEquals(PackReport.outcome.CORRUPTED,
+                assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                        () -> RepoPacker.unpack(mappingsFirst, mappingsFirst.resolve("mapping/mapping.txt"), zipMappingsFirst))
+                        .outcome());
+        assertTrue(children(mappingsFirst).isEmpty(), "拒绝时不该写出任何文件");
+
+        Path fileFirst = newTarget();
+        Path zipFileFirst = zipOf(PackManifest.ENTRY_NAME, VALID_MANIFEST,
+                "mapping", "FILE", "mappings.txt", "M");
+        assertEquals(PackReport.outcome.CORRUPTED,
+                assertDoesNotThrow((ThrowingSupplier<PackReport>)
+                        () -> RepoPacker.unpack(fileFirst, fileFirst.resolve("mapping/mapping.txt"), zipFileFirst))
+                        .outcome());
+        assertTrue(children(fileFirst).isEmpty(), "拒绝时不该写出任何文件");
     }
 
     // ---------- 解包拒绝：路径冲突 ----------

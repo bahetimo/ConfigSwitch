@@ -29,4 +29,8 @@ public final class RepoPaths {
     public static Path importBackupDir() {
         return repoRoot().resolve("import-backup");
     }
+
+    public static Path mappingsFile() {
+        return root().resolve("mappings.txt");
+    }
 }

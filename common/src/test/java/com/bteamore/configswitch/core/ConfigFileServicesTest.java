@@ -63,12 +63,12 @@ public class ConfigFileServicesTest {
         }
 
         @Override
-        public PackReport exportRepo(Path root, Path output, String version) {
+        public PackReport exportRepo(Path repoRoot, Path mappingsFile, Path output, String version) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public PackReport importRepo(Path root, Path input, Path backupRoot) {
+        public PackReport importRepo(Path repoRoot, Path mappingsFile, Path input, Path backupRoot) {
             throw new UnsupportedOperationException();
         }
     }

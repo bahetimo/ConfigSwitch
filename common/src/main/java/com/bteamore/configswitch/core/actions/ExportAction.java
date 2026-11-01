@@ -14,7 +14,7 @@ public class ExportAction implements Action<ConfigState, ConfigEvent> {
         if (context instanceof ExportRequest exportRequest) {
             Log.info("StateMachine - Export started {}", exportRequest.output());
 
-            PackReport report = service.exportRepo(exportRequest.root(), exportRequest.output(), exportRequest.version());
+            PackReport report = service.exportRepo(exportRequest.repoRoot(), exportRequest.mappingsFile(), exportRequest.output(), exportRequest.version());
             exportRequest.onResult().accept(report);
         }
         return ConfigEvent.DONE;

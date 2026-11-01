@@ -10,6 +10,6 @@ public interface IConfigFileService {
     SyncReport pushActiveToGlobal(List<ConfigPaths> paths);
     SyncReport fetchGlobalToActive(List<ConfigPaths> paths);  // global -> active
     SyncReport restore(BackupSnapshot snapshot, RestoreTarget restoreTarget, Path backupRoot);
-    PackReport exportRepo(Path root, Path output, String version);
-    PackReport importRepo(Path root, Path input, Path backupRoot);
+    PackReport exportRepo(Path repoRoot, Path mappingsFile, Path output, String version);
+    PackReport importRepo(Path repoRoot, Path mappingsFile, Path input, Path backupRoot);
 }

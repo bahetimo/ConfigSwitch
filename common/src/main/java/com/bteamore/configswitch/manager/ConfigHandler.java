@@ -224,7 +224,7 @@ public class ConfigHandler implements IConfigFileService {
     }
 
     @Override
-    public PackReport exportRepo(Path sourceRoot, Path targetRoot, String version) {
+    public PackReport exportRepo(Path sourceRoot, Path mappingFile, Path targetRoot, String version) {
         try {
             Files.createDirectories(targetRoot);
         } catch (IOException e) {
@@ -234,11 +234,11 @@ public class ConfigHandler implements IConfigFileService {
         Path target = targetRoot.resolve(Time.timeString() + "-export.zip");
         PackManifest manifest = new PackManifest(PackManifest.DEFAULT_FORMAT, target.toString(), version);
 
-        return RepoPacker.pack(sourceRoot, target, manifest);
+        return RepoPacker.pack(sourceRoot, mappingFile, target, manifest);
     }
 
     @Override
-    public PackReport importRepo(Path sourceRoot, Path input, Path backupRoot) {
+    public PackReport importRepo(Path sourceRoot, Path mappingFile, Path input, Path backupRoot) {
         // 导入前备份现有的repo
         String newTimestamp = Time.timeString();
         try {
@@ -250,7 +250,7 @@ public class ConfigHandler implements IConfigFileService {
         Path backup = backupRoot.resolve(newTimestamp).resolve("backup.zip");
         PackManifest manifest = new PackManifest(PackManifest.DEFAULT_FORMAT, backup.toString(), "backup");
 
-        PackReport packed = RepoPacker.pack(sourceRoot, backup, manifest);
+        PackReport packed = RepoPacker.pack(sourceRoot, mappingFile, backup, manifest);
         if (packed.outcome() != PackReport.outcome.SUCCESS) {
             Log.warn("Failed to backup existing repo before import");
             return packed;
@@ -259,7 +259,7 @@ public class ConfigHandler implements IConfigFileService {
         Optional<Boolean> packHasMeta = RepoPacker.containsEntry(
             input, RepoMetaStore.GLOBAL_ENTRY);
 
-        PackReport report = RepoPacker.unpack(sourceRoot, input);
+        PackReport report = RepoPacker.unpack(sourceRoot, mappingFile, input);
 
         if (report.outcome() == PackReport.outcome.SUCCESS
             && packHasMeta.isPresent()

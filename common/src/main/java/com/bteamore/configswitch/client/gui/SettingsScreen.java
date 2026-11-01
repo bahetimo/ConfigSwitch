@@ -159,7 +159,7 @@ public class SettingsScreen extends Screen {
             return;
         }
 
-        ImportRequest request = new ImportRequest(RepoPaths.root(), zip, RepoPaths.importBackupDir(), report -> this.onComplete("import", report));
+        ImportRequest request = new ImportRequest(RepoPaths.repoRoot(), RepoPaths.mappingsFile(), zip, RepoPaths.importBackupDir(), report -> this.onComplete("import", report));
 
         this.stateManager.transition("import", request);
     }
@@ -168,7 +168,7 @@ public class SettingsScreen extends Screen {
         this.message = null;
         String version = Platforms.get().selfVersion();
 
-        ExportRequest request = new ExportRequest(RepoPaths.root(), RepoPaths.exportDir(), version, (PackReport report) -> this.onComplete("export", report));
+        ExportRequest request = new ExportRequest(RepoPaths.repoRoot(), RepoPaths.mappingsFile(), RepoPaths.exportDir(), version, (PackReport report) -> this.onComplete("export", report));
 
         this.stateManager.transition("export", request);
     }
