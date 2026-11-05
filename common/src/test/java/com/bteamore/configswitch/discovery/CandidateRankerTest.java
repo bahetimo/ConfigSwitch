@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.ThrowingSupplier;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -86,7 +87,10 @@ public class CandidateRankerTest {
 
         List<String> first = order(stem, candidates);
         List<String> second = order(stem, candidates);
-        List<String> reversedInput = order(stem, snapshot.reversed());
+        // Java 17 没有 List.reversed()（Java 21 的 SequencedCollection）
+        List<ModCandidate> reversedSnapshot = new ArrayList<>(snapshot);
+        Collections.reverse(reversedSnapshot);
+        List<String> reversedInput = order(stem, reversedSnapshot);
 
         assertEquals(first, second);
         assertEquals(first, reversedInput);

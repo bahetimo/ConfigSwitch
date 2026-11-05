@@ -7,31 +7,35 @@ import com.bteamore.configswitch.client.gui.widget.ConfigIconButton;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
-import net.neoforged.neoforge.common.NeoForge;
+import net.minecraftforge.client.ConfigScreenHandler;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.lwjgl.glfw.GLFW;
 
-@Mod(value = Constants.MOD_ID, dist = Dist.CLIENT)
-public class ConfigSwitchNeoForgeClient {
+public final class ConfigSwitchNeoForgeClient {
     private static KeyMapping openConfigScreen;
 
-    public ConfigSwitchNeoForgeClient(IEventBus modEventBus, ModContainer container) {
+    private ConfigSwitchNeoForgeClient() {
+    }
+
+    public static void init() {
         // 加载期注册：RegisterKeyMappingsEvent 是 IModBusEvent，只在客户端 fire
-        modEventBus.addListener(ConfigSwitchNeoForgeClient::onRegisterKeyMappings);
+        IEventBus eventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        eventBus.addListener(ConfigSwitchNeoForgeClient::onRegisterKeyMappings);
 
-        // 运行期事件：tick 与 screen 都在游戏总线
-        NeoForge.EVENT_BUS.addListener(ConfigSwitchNeoForgeClient::onClientTick);
-        NeoForge.EVENT_BUS.addListener(ConfigSwitchNeoForgeClient::onScreenInit);
+        // 运行期事件：tick 与 screen 都在 Forge 总线
+        MinecraftForge.EVENT_BUS.addListener(ConfigSwitchNeoForgeClient::onClientTick);
+        MinecraftForge.EVENT_BUS.addListener(ConfigSwitchNeoForgeClient::onScreenInit);
 
-        container.registerExtensionPoint(IConfigScreenFactory.class,
-            (modContainer, screen) -> new ConfigScreen(screen));
+        ModLoadingContext.get().registerExtensionPoint(
+            ConfigScreenHandler.ConfigScreenFactory.class,
+            () -> new ConfigScreenHandler.ConfigScreenFactory((minecraft, screen) -> new ConfigScreen(screen))
+        );
     }
 
     private static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
@@ -44,7 +48,10 @@ public class ConfigSwitchNeoForgeClient {
         event.register(openConfigScreen);
     }
 
-    private static void onClientTick(ClientTickEvent.Post event) {
+    private static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         while (openConfigScreen.consumeClick()) {
             minecraft.setScreen(new ConfigScreen(minecraft.screen));

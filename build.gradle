@@ -1,9 +1,7 @@
 plugins {
-    id 'fabric-loom' version '1.12.1' apply false
+    id 'fabric-loom' version '1.9.2' apply false
 
-    id 'net.neoforged.moddev' version '2.0.141' apply false
-
-    id 'net.minecraftforge.gradle' version '6.0.54' apply false
+    id 'net.neoforged.moddev.legacyforge' version '2.0.148' apply false
 }
 
 def computeVersion(){

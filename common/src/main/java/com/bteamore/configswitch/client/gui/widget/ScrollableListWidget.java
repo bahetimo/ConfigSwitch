@@ -8,10 +8,23 @@ import java.util.function.Consumer;
 public abstract class ScrollableListWidget<E extends ContainerObjectSelectionList.Entry<E>> extends ContainerObjectSelectionList<E> {
     private Consumer<E> onRowClick = null;
 
-    public ScrollableListWidget(Minecraft minecraftClient, int i, int j, int k, int l) {
-        super(minecraftClient, i, j, k, l);
+    public ScrollableListWidget(Minecraft minecraftClient, int width, int height, int y, int itemHeight) {
+        super(minecraftClient, width, height, y, y + height, itemHeight);
         // 条目从顶部开始排列，不随内容高度垂直居中
         this.centerListVertically = false;
+    }
+
+    public void setX(int x) {
+        this.x0 = x;
+        this.x1 = x + this.width;
+    }
+
+    public int getY() {
+        return this.y0;
+    }
+
+    public int getHeight() {
+        return this.height;
     }
 
     public void setOnRowClick(Consumer<E> onRowClick) {
@@ -20,12 +33,12 @@ public abstract class ScrollableListWidget<E extends ContainerObjectSelectionLis
 
     @Override
     public int getRowWidth() {
-        return this.width - (this.scrollbarVisible() ? 38 : 32);
+        return this.width - (this.getMaxScroll() > 0 ? 38 : 32);
     }
 
     @Override
     protected int getScrollbarPosition() {
-        return this.getRight() - 6;
+        return this.x1 - 6;
     }
 
     @Override

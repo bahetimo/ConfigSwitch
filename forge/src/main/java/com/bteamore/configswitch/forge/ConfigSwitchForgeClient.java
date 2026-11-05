@@ -12,6 +12,8 @@ import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.lwjgl.glfw.GLFW;
 
@@ -21,15 +23,16 @@ public final class ConfigSwitchForgeClient {
     private ConfigSwitchForgeClient() {
     }
 
-    public static void init(FMLJavaModLoadingContext context) {
+    public static void init() {
         // 加载期注册：RegisterKeyMappingsEvent 是 IModBusEvent，只在客户端 fire
-        context.getModEventBus().addListener(ConfigSwitchForgeClient::onRegisterKeyMappings);
+        IEventBus eventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        eventBus.addListener(ConfigSwitchForgeClient::onRegisterKeyMappings);
 
         // 运行期事件：tick 与 screen 都在 Forge 总线
         MinecraftForge.EVENT_BUS.addListener(ConfigSwitchForgeClient::onClientTick);
         MinecraftForge.EVENT_BUS.addListener(ConfigSwitchForgeClient::onScreenInit);
 
-        context.registerExtensionPoint(
+        ModLoadingContext.get().registerExtensionPoint(
             ConfigScreenHandler.ConfigScreenFactory.class,
             () -> new ConfigScreenHandler.ConfigScreenFactory((screen) -> new ConfigScreen(screen))
         );
@@ -45,7 +48,10 @@ public final class ConfigSwitchForgeClient {
         event.register(openConfigScreen);
     }
 
-    private static void onClientTick(TickEvent.ClientTickEvent.Post event) {
+    private static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) {
+            return;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         while (openConfigScreen.consumeClick()) {
             minecraft.setScreen(new ConfigScreen(minecraft.screen));

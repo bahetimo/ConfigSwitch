@@ -10,9 +10,10 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
 
 public final class TitleScreenButton {
-    private static final String LANGUAGE_BUTTON_KEY = "options.language";
+    private static final String ANCHOR_KEY = "menu.options";
     private static final String SINGLEPLAYER_BUTTON_KEY = "menu.singleplayer";
     private static final String MULTIPLAYER_BUTTON_KEY = "menu.multiplayer";
+    private static final int ANCHOR_OFFSET_X = 24;
 
     private TitleScreenButton() {
     }
@@ -22,17 +23,17 @@ public final class TitleScreenButton {
             return null;
         }
 
-        AbstractWidget language = findButton(screen, LANGUAGE_BUTTON_KEY);
+        AbstractWidget anchor = findButton(screen, ANCHOR_KEY);
         int x;
         int y;
-        if (language == null) {
+        if (anchor == null) {
             // 找不到语言按钮：退到左下角，位置可预期且不会压到按钮列
-            Log.warn("Language button not found on the title screen, falling back to the bottom left corner");
+            Log.warn("Menu anchor button not found on the title screen, falling back to the bottom left corner");
             x = ConfigIconButton.MARGIN;
             y = ConfigIconButton.bottomLeftY(screen.height);
         } else {
-            x = language.getX();
-            y = ConfigIconButton.aboveY(language.getY(), rowStep(screen));
+            x = anchor.getX() - ANCHOR_OFFSET_X;
+            y = ConfigIconButton.aboveY(anchor.getY(), rowStep(screen));
         }
 
         return new ConfigIconButton(x, y, ConfigIconButton.SIZE,

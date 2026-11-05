@@ -91,7 +91,7 @@ public class TransferPanel extends AbstractWidget {
         if (paths.size() > 1) {
             return new Drop(null, Reason.MULTIPLE);
         }
-        Path first = paths.getFirst();
+        Path first = paths.get(0);
         if (first == null || !Files.isRegularFile(first)) {
             return new Drop(null, Reason.NOT_A_FILE);
         }

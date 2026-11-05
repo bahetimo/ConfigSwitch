@@ -51,11 +51,13 @@ public class ModGroupsEntry extends ContainerObjectSelectionList.Entry<ModGroups
             this.classifyButton = null;
         }
 
-        this.checkbox = Checkbox.builder(Component.empty(), Minecraft.getInstance().font)
-                .pos(0, 0)
-                .selected(selected)
-                .onValueChange((checkbox, checked) -> onToggle.accept(modId, checked))
-                .build();
+        this.checkbox = new Checkbox( 0, 0, 20, 20, Component.empty(), selected) {
+            @Override
+            public void onPress() {
+                super.onPress();
+                onToggle.accept(modId, this.selected());
+            }
+        };
     }
 
     @Override

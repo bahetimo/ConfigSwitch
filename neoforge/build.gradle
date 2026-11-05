@@ -1,16 +1,16 @@
 plugins {
     id 'multiloader-loader'
-    id 'net.neoforged.moddev'
+    id 'net.neoforged.moddev.legacyforge'
 }
 
-neoForge {
-    version = neoforge_version
-
+legacyForge {
+    enable {
+        neoForgeVersion = neoforge_version
+    }
     parchment {
         minecraftVersion = parchment_minecraft
         mappingsVersion = parchment_version
     }
-
     runs {
         client {
             client()
@@ -19,10 +19,13 @@ neoForge {
             server()
         }
     }
-
     mods {
         "${mod_id}" {
             sourceSet sourceSets.main
         }
     }
+}
+
+jar {
+    finalizedBy('reobfJar')
 }

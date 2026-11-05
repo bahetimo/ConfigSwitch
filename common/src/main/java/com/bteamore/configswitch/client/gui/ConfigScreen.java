@@ -256,7 +256,7 @@ public class ConfigScreen extends Screen {
             .map(m -> m.modId() + " (" + m.sourceMinecraft() + "/" + m.sourceLoader() + ")")
             .collect(Collectors.joining(sep));
 
-        SourceMismatch first = mismatches.getFirst();
+        SourceMismatch first = mismatches.get(0);
         MutableComponent msg = Component.translatable("configswitch.message.source_mismatch", count, examples, first.currentMinecraft(), first.currentLoader());
         if (count > 3) {
             msg.append(Component.translatable("configswitch.message.source_mismatch.more", count - 3));

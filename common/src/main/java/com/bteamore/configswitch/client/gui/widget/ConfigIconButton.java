@@ -53,7 +53,7 @@ public class ConfigIconButton extends Button {
 
     @Override
     protected void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        ResourceLocation texture = ResourceLocation.fromNamespaceAndPath("configswitch", texturePath(this.active, isMouseOver(mouseX, mouseY)));
+        ResourceLocation texture = new ResourceLocation("configswitch", texturePath(this.active, isMouseOver(mouseX, mouseY)));
         context.blit(texture, getX(), getY(), 0, 0, getWidth(), getHeight(), getWidth(), getHeight());
     }
 }
