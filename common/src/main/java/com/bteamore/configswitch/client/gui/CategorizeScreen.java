@@ -132,6 +132,7 @@ public class CategorizeScreen extends Screen {
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+        this.renderBackground(context); // 1.20.1-only
         super.render(context, mouseX, mouseY, delta);
         context.drawCenteredString(this.font, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
         if (this.message != null) {
