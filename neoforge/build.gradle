@@ -14,9 +14,11 @@ legacyForge {
     runs {
         client {
             client()
+            gameDirectory.set(file('runs/client'))
         }
         server {
             server()
+            gameDirectory.set(file('runs/server'))
         }
     }
     mods {
