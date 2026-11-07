@@ -14,7 +14,7 @@ and moves them in either direction:
 
 Your configs follow you, not the pack.
 
-![Config screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/main/res/ConfigScreen.png)
+![Config screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/1.21.1/res/ConfigScreen.png)
 
 ## How to use it
 
@@ -96,7 +96,7 @@ are sorted to the top, and you can search by mod id or name), or mark it as
   settings — the built-in mappings are in there too, so you can see and edit
   them.
 
-![Classify screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/main/res/CategorizeScreen.png)
+![Classify screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/1.21.1/res/CategorizeScreen.png)
 
 ### Everything is backed up before it's overwritten
 
@@ -108,7 +108,7 @@ backups are pruned automatically — so a bad sync is never permanent.
 The **Backup** screen lists past snapshots from both sides. Restoring one is itself
 backed up first, so **a restore can be undone**.
 
-![Backup screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/main/res/BackupScreen.png)
+![Backup screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/1.21.1/res/BackupScreen.png)
 
 ### Take the whole repository with you
 
@@ -127,7 +127,7 @@ Switch computers without copying `%APPDATA%` by hand.
 
 Change where the repository lives, and how many backups to keep.
 
-![Settings screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/main/res/SettingsScreen.png)
+![Settings screen](https://raw.githubusercontent.com/bahetimo/ConfigSwitch/1.21.1/res/SettingsScreen.png)
 
 ## Requirements
 
@@ -185,7 +185,7 @@ it's a one-off and does not persist.
 
 ## License
 
-MIT — see [LICENSE.txt](https://github.com/bahetimo/ConfigSwitch/blob/main/LICENSE.txt)
+MIT — see [LICENSE.txt](https://github.com/bahetimo/ConfigSwitch/blob/1.21.1/LICENSE.txt)
 
 ## For contributors
 
