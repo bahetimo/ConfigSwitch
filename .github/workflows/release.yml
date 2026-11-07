@@ -31,6 +31,7 @@ jobs:
     runs-on: windows-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      mc: ${{ steps.version.outputs.mc }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,10 +39,23 @@ jobs:
           # 补发通道要读 tag 的注解 message，浅克隆拿不到 tag 的 message
           fetch-depth: 0
 
-      - name: Set up JDK 21
+      # Java 版本的真源是 gradle.properties。
+      # 从文件读而不是写死，是为了让两个分支的 workflow 逐字节相同。
+      - name: Resolve Java version
+        id: props
+        shell: bash
+        run: |
+          J=$(sed -n 's/^java_version=//p' gradle.properties | tr -d '\r')
+          if [ -z "$J" ]; then
+            echo "::error::gradle.properties 缺少 java_version"
+            exit 1
+          fi
+          echo "java=$J" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK ${{ steps.props.outputs.java }}
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: ${{ steps.props.outputs.java }}
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -94,8 +108,30 @@ jobs:
             esac
           fi
 
+          # ── MC 版本段 ──
+          # tag 格式 v<modVersion>+<mcVersion>，MC 段同时是平台 game-versions 的来源。
+          # 一致性守卫：tag 的 MC 段必须等于本分支 gradle.properties 的
+          # minecraft_version，挡住「把 1.20.1 的 tag 打在 1.21.1 分支上」这类错误。
+          case "$V" in
+            *+*) ;;
+            *)
+              echo "::error::版本号缺少 +<mcVersion> 段（例如 1.3.0+1.20.1）"
+              exit 1
+              ;;
+          esac
+          MC="${V#*+}"
+          MC="${MC%%[-+]*}"
+          PROP_MC=$(sed -n 's/^minecraft_version=//p' gradle.properties | tr -d '\r')
+          if [ "$MC" != "$PROP_MC" ]; then
+            echo "::error::tag 的 MC 段「$MC」与 gradle.properties 的 minecraft_version「$PROP_MC」不一致"
+            echo "::error::这条守卫挡的是：把 1.20.1 的 tag 打在 1.21.1 分支上（或反之）"
+            exit 1
+          fi
+
           echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "mc=$MC" >> "$GITHUB_OUTPUT"
           echo "版本号：$V"
+          echo "MC 版本：$MC"
 
       # -PcurrentTag 是版本号注入的入口，由 build.gradle 读取。
       # 传的是【不含 v】的版本号，所以 build.gradle 里直接用即可，
@@ -174,8 +210,8 @@ jobs:
           version: ${{ needs.build.outputs.version }}-${{ matrix.loader }}
           changelog-file: changelog.md
 
-          # 显式优于隐式：这两个本来可以从 jar 元数据推断
-          game-versions: 1.21.1
+          # MC 段来自 tag（Resolve version 已校验过它与本分支 gradle.properties 一致）
+          game-versions: ${{ needs.build.outputs.mc }}
           loaders: ${{ matrix.loader }}
 
           # version-type 故意不写：默认从 version 里的 -alpha / -beta 推导；1.1.0 是 release
@@ -204,5 +240,5 @@ jobs:
           version: ${{ needs.build.outputs.version }}-${{ matrix.loader }}
           changelog-file: changelog.md
 
-          game-versions: 1.21.1
+          game-versions: ${{ needs.build.outputs.mc }}
           loaders: ${{ matrix.loader }}

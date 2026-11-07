@@ -13,7 +13,22 @@ def computeVersion(){
             commandLine "git", "describe", "--tags", "--always", "--dirty"
             ignoreExitValue = true
         }.standardOutput.asText.get().trim()
-        return desc.isEmpty() ? "0.0.0-dev" : desc.replaceFirst("^v", "")
+        if (desc.isEmpty()) {
+            return "0.0.0-dev"
+        }
+        desc = desc.replaceFirst("^v", "")
+        // git describe 只保证「最近的 tag」，不保证「本版本线的 tag」。
+        // 把 +MC 段校正为 gradle.properties 的 minecraft_version，保留 -N-gsha 后缀。
+        def mc = project.findProperty("minecraft_version")
+        def plus = desc.indexOf('+')
+        if (mc && plus > 0) {
+            def head = desc.substring(0, plus)
+            def tail = desc.substring(plus + 1)
+            def dash = tail.indexOf('-')
+            def rest = (dash >= 0) ? tail.substring(dash) : ""
+            return head + "+" + mc + rest
+        }
+        return desc
     } catch (Exception ignored) {
         return "0.0.0-dev"
     }
