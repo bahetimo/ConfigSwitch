@@ -39,15 +39,17 @@ That's it — no config files to edit by hand.
 ### One mod, three loaders
 
 The same ConfigSwitch works on **Fabric**, **Forge** and **NeoForge** for
-Minecraft 1.21.1. Pick the jar that matches your loader; the global repository
-is shared.
+Minecraft **1.21.1** and **1.20.1**. Pick the jar that matches your loader and
+your game version; the global repository is shared between them.
 
 ### Warns when configs came from a different version or loader
 
 Fetch compares each mod's recorded source — the Minecraft version and loader
 it was last pushed from — with the current game. If they differ, the result
 message adds a short warning. The fetch still runs: the warning is a hint,
-not a block.
+not a block. This is what makes one repository usable across game versions:
+settings pushed from 1.21.1 can be fetched into a 1.20.1 instance, and you
+get told when the two sides came from different places.
 
 ### A `?` in the corner explains the two buttons
 
@@ -131,15 +133,13 @@ Change where the repository lives, and how many backups to keep.
 
 ## Requirements
 
-- Minecraft **1.21.1**
+- Minecraft **1.21.1** or **1.20.1**
 - **Fabric** (Fabric Loader **0.15.10** or newer, plus **Fabric API**),
   **Forge**, or **NeoForge**
 - **Windows** (for now)
 
 ## Known limitations
 
-- **Minecraft 1.20.1 is not supported yet.** Fabric / Forge / NeoForge on
-  1.21.1 only.
 - **Forge and NeoForge servers still load this client-side mod.** It does not
   crash, but it is client-side only in practice.
 - **Mod Menu integration is Fabric-only.** On Forge / NeoForge use the mod
