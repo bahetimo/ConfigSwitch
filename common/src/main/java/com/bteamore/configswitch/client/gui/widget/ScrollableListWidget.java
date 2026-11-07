@@ -1,6 +1,7 @@
 package com.bteamore.configswitch.client.gui.widget;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 
 import java.util.function.Consumer;
@@ -8,10 +9,28 @@ import java.util.function.Consumer;
 public abstract class ScrollableListWidget<E extends ContainerObjectSelectionList.Entry<E>> extends ContainerObjectSelectionList<E> {
     private Consumer<E> onRowClick = null;
 
+    private static final int PANEL_FILL_MENU = 0x70000000;
+    private static final int PANEL_FILL_WORLD = 0x50000000;
+    private static final int PANEL_BORDER = 0x90000000;
+
     public ScrollableListWidget(Minecraft minecraftClient, int width, int height, int y, int itemHeight) {
         super(minecraftClient, width, height, y, y + height, itemHeight);
+
+        this.setRenderBackground(false); // 1.20.1-only
+        this.setRenderTopAndBottom(false); // 1.20.1-only
+
         // 条目从顶部开始排列，不随内容高度垂直居中
         this.centerListVertically = false;
+    }
+
+    @Override
+    protected void renderBackground(GuiGraphics context) {
+        int fill = (Minecraft.getInstance().level == null) ? PANEL_FILL_MENU : PANEL_FILL_WORLD;
+        context.fill(this.x0, this.y0, this.x1, this.y1, fill);
+        context.fill(this.x0, this.y0, this.x1, this.y0 + 1, PANEL_BORDER);
+        context.fill(this.x0, this.y1 - 1, this.x1, this.y1, PANEL_BORDER);
+        context.fill(this.x0, this.y0, this.x0 + 1, this.y1, PANEL_BORDER);
+        context.fill(this.x1 - 1, this.y0, this.x1, this.y1, PANEL_BORDER);
     }
 
     public void setX(int x) {
